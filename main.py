@@ -17,6 +17,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Connecting to Database.....")
+    if Database.initialize():
+        print("Connected to Database")
+    else:
+        print("Failed to connect to Database")
+        raise Exception("Database connection failed")
+    yield
+    print("Disconnecting from Database.....")
+    Database._engine.dispose()
+    print("Disconnected from Database")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug")
