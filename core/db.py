@@ -1,30 +1,31 @@
+import sqlalchemy
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 import os
+from contextlib import contextmanager
 
 load_dotenv()
 
 class Database:
     _engine = None
     _SessionLocal = None
-    Base = declarative_base()
 
     @classmethod
     def initialize(cls):
-        if not cls._engine:
-            db_url = os.getenv("DATABASE_URL")
-            if not db_url:
-                raise ValueError("DATABASE_URL not set in environment.")
-            cls._engine = create_engine(db_url)
+        try:
+            url = os.getenv("DATABASE_URL")
+            cls._engine = create_engine(url)
             cls._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=cls._engine)
             return True
-        return False
-    
+        except Exception as e:
+            print(f"Error initializing database: {e}")
+            return False
+        
     @classmethod
-    def get_db(cls):
-        if not cls._SessionLocal:
+    @contextmanager
+    def get_session(cls):
+        if cls._SessionLocal is None:
             cls.initialize()
         db = cls._SessionLocal()
         try:
