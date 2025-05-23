@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.db import Database
 import uvicorn
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-from fastapi import Depends
+from core.auth import register,login
 
 app= FastAPI()
 
@@ -24,13 +22,23 @@ async def lifespan(app: FastAPI):
         print("Connected to Database")
     else:
         print("Failed to connect to Database")
-        raise Exception("Database connection failed")
+        raise RuntimeError("Database connection failed")
     yield
     print("Disconnecting from Database.....")
     Database._engine.dispose()
     print("Disconnected from Database")
 
 app=FastAPI(lifespan=lifespan)
+
+@app.post("/register")
+async def register_user(username: str, password: str, role: str):
+    return register(username, password, role)
+
+@app.post("/login") 
+async def login_user(username: str, password: str):
+    return login(username, password)
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
