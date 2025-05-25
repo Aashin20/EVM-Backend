@@ -3,17 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.db import Database
 import uvicorn
-from core.auth import register,login
+from core.auth import register, login
 
-app= FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,13 +19,24 @@ async def lifespan(app: FastAPI):
     Database._engine.dispose()
     print("Disconnected from Database")
 
-app=FastAPI(lifespan=lifespan)
+
+app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post("/register")
 async def register_user(username: str, password: str, role: str):
     return register(username, password, role)
 
-@app.post("/login") 
+
+@app.post("/login")
 async def login_user(username: str, password: str):
     return login(username, password)
 
@@ -42,6 +44,7 @@ async def login_user(username: str, password: str):
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug")
