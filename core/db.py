@@ -1,11 +1,14 @@
-import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 import os
 from contextlib import contextmanager
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
 
 load_dotenv()
+
 
 class Database:
     _engine = None
@@ -21,7 +24,7 @@ class Database:
         except Exception as e:
             print(f"Error initializing database: {e}")
             return False
-        
+
     @classmethod
     @contextmanager
     def get_session(cls):
