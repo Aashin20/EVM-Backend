@@ -18,3 +18,13 @@ def create_token(details: dict, expiry: int = 30):
     return jwt_token
 
 
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, ALGORITHM)
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        return {"error": str(e)}
