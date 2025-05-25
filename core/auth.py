@@ -24,3 +24,17 @@ def login(username, password):
 
 
 
+def register(username, password, role):
+    with Database.get_session() as session:
+        existing_user = session.query(User).filter(User.username == username).first()
+        if existing_user:
+            return {"error": "Username already exists"}
+
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        new_user = User(username=username, password_hash=hashed_password, role=role)
+        session.add(new_user)
+        session.commit()
+        session.refresh(new_user)
+
+    token = create_token({"username": new_user.username, "role": new_user.role})
+    return {"token": token, "role": new_user.role, "username": new_user.username}
