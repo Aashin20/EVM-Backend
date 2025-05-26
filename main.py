@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.db import Database
 import uvicorn
-from core.auth import register, login
+from routers import auth_route
 
 
 @asynccontextmanager
@@ -30,15 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.post("/register")
-async def register_user(username: str, password: str, role: str):
-    return register(username, password, role)
-
-
-@app.post("/login")
-async def login_user(username: str, password: str):
-    return login(username, password)
+app.include_router(auth_route.router, prefix="/auth", tags=["auth"])
 
 
 @app.get("/health")
