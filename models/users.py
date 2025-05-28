@@ -68,3 +68,12 @@ class Level(Base):
 
     users = relationship("User", back_populates="level")
 
+class District(Base):
+    __tablename__ = 'districts'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+
+    users = relationship("User", back_populates="district")
+    local_bodies = relationship("LocalBody", back_populates="district")
+    warehouses = relationship("Warehouse", back_populates="district")
+
