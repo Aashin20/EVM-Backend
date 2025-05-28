@@ -59,3 +59,12 @@ class Role(Base):
     users = relationship("User", back_populates="role")
 
 
+class Level(Base):
+    __tablename__ = 'levels'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(Enum(LevelEnum), unique=True, nullable=False)
+    hierarchy_order = Column(Integer, nullable=False)
+
+    users = relationship("User", back_populates="level")
+
