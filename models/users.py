@@ -17,3 +17,10 @@ class LevelEnum(str, enum.Enum):
     Corportation = "Corporation"
     Grama_Panchayat = "Grama Panchayat"
 
+class LocalBodyType(str, enum.Enum):
+    Grama_Panchayat  = "Grama Panchayat"
+    Block_Panchayat = "Block Panchayat"
+    Municipality = "Municipality"
+    Corportation = "Corporation"
+
+
