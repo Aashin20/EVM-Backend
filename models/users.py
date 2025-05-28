@@ -89,3 +89,13 @@ class Warehouse(Base):
     users = relationship("User", back_populates="warehouse")
 
 
+class LocalBody(Base):
+    __tablename__ = 'local_bodies'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    type = Column(Enum(LocalBodyType), nullable=False)
+    district_id = Column(Integer, ForeignKey('districts.id'), nullable=False)
+
+    district = relationship("District", back_populates="local_bodies")
+    users = relationship("User", back_populates="local_body")
