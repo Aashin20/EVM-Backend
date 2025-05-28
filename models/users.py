@@ -77,3 +77,15 @@ class District(Base):
     local_bodies = relationship("LocalBody", back_populates="district")
     warehouses = relationship("Warehouse", back_populates="district")
 
+class Warehouse(Base):
+    __tablename__ = 'warehouses'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    location = Column(String)
+    district_id = Column(Integer, ForeignKey('districts.id'))
+
+    district = relationship("District", back_populates="warehouses")
+    users = relationship("User", back_populates="warehouse")
+
+
