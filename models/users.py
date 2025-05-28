@@ -1,13 +1,19 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import (
+    Column, Integer, String, Boolean, DateTime,
+    ForeignKey, Enum
+)
+from sqlalchemy.orm import relationship
+from datetime import datetime
+import enum
 from core.db import Base
 
-class User(Base):
-    
-    __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
-    role = Column(String, nullable=False)  
-    is_active = Column(Boolean, default=True)
-    created_at = Column(Integer, nullable=False)
+class LevelEnum(str, enum.Enum):
+    Developer = "Developer"
+    State = "State"
+    District = "District"
+    Block_Panchayat = "Block Panchayat"
+    Municipality = "Municipality"
+    Corportation = "Corporation"
+    Grama_Panchayat = "Grama Panchayat"
+
