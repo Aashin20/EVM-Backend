@@ -1,11 +1,12 @@
 from fastapi import APIRouter
 from core.auth import register, login
+from core.auth import RegisterModel
 
 router = APIRouter()
 
 @router.post("/register")
-async def register_user(username: str, password: str, role: str):
-    return register(username, password, role)
+async def register_user(details: RegisterModel):
+    return register(details)
 
 
 @router.post("/login")
