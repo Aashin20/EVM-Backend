@@ -24,3 +24,29 @@ class LocalBodyType(str, enum.Enum):
     Corportation = "Corporation"
 
 
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+    district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
+    local_body_id = Column(Integer, ForeignKey('local_bodies.id'), nullable=True)
+    warehouse_id = Column(Integer, ForeignKey('warehouses.id'), nullable=True)
+
+   
+    role_id = Column(Integer, ForeignKey('roles.id'), nullable=False)
+    level_id = Column(Integer, ForeignKey('levels.id'), nullable=False)
+
+ 
+    role = relationship("Role", back_populates="users")
+    level = relationship("Level", back_populates="users")
+    district = relationship("District", back_populates="users")
+    local_body = relationship("LocalBody", back_populates="users")
+    warehouse = relationship("Warehouse", back_populates="users")
+
+
