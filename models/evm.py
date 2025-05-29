@@ -27,3 +27,11 @@ class AllotmentType(str, enum.Enum):
     BO_TO_RO = "BO to Returning Officer"
     RO_TO_PO = "RO to Presiding Officer"
     RETURN = "Return"
+
+
+class NotificationType(str, enum.Enum):
+    NEW_EVM_ALLOTMENT = "New EVM Allotment"
+    RETURN_REQUEST = "Return Request"
+    FLC_PENDING = "FLC Pending"
+    OTHER = "Other"
+
