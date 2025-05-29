@@ -154,3 +154,15 @@ class Notification(Base):
 
     user = relationship("User")
 
+class AuditLog(Base):
+    __tablename__ = 'audit_logs'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    action = Column(String)
+    table = Column(String)
+    record_id = Column(Integer)
+    description = Column(String)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+
+    user = relationship("User")
