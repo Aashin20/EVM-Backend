@@ -87,3 +87,16 @@ class Allotment(Base):
     original_allotment = relationship("Allotment", remote_side=[id])
 
 
+class AllotmentItem(Base):
+    __tablename__ = 'allotment_items'
+
+    id = Column(Integer, primary_key=True)
+    allotment_id = Column(Integer, ForeignKey('allotments.id'))
+    evm_component_id = Column(Integer, ForeignKey('evm_components.id'))
+
+    remarks = Column(String)
+
+    allotment = relationship("Allotment", back_populates="items")
+    evm_component = relationship("EVMComponent")
+
+
