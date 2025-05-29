@@ -128,3 +128,12 @@ class FLCRecord(Base):
     bus = relationship("FLCBallotUnit", back_populates="flc", cascade="all, delete-orphan")
 
 
+class FLCBallotUnit(Base):
+    __tablename__ = 'flc_bu'
+
+    id = Column(Integer, primary_key=True)
+    flc_id = Column(Integer, ForeignKey('flc_records.id'))
+    bu_id = Column(Integer, ForeignKey('evm_components.id'))
+
+    flc = relationship("FLCRecord", back_populates="bus")
+    bu = relationship("EVMComponent")
