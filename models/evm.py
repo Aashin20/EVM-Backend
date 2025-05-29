@@ -15,3 +15,8 @@ class EVMComponentType(str, enum.Enum):
     DMM_SEAL = "DMM_SEAL"
     PINK_PAPER_SEAL = "PINK_PAPER_SEAL"
 
+class ReturnReason(str, enum.Enum):
+    Polling_Completed = "Polling Completed"
+    FLC_Failed = "FLC_Failed"
+    Faulty = "Faulty/Damaged"
+    Other = "Other"
