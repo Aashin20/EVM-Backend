@@ -137,3 +137,20 @@ class FLCBallotUnit(Base):
 
     flc = relationship("FLCRecord", back_populates="bus")
     bu = relationship("EVMComponent")
+
+
+
+class Notification(Base):
+    __tablename__ = 'notifications'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    type = Column(Enum(NotificationType), nullable=False)
+    message = Column(String)
+    target_table = Column(String)
+    target_id = Column(Integer)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+
+    user = relationship("User")
+
