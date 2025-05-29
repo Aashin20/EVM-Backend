@@ -52,3 +52,38 @@ class EVMComponent(Base):
     current_user = relationship("User")
     current_warehouse = relationship("Warehouse")
 
+
+class Allotment(Base):
+    __tablename__ = "allotments"
+
+    id = Column(Integer, primary_key=True)
+    allotment_type = Column(Enum(AllotmentType), nullable=False)
+
+    from_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    to_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    from_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
+    to_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
+    from_local_body_id = Column(Integer, ForeignKey('local_bodies.id'), nullable=True)
+    to_local_body_id = Column(Integer, ForeignKey('local_bodies.id'), nullable=True)
+
+    initiated_by_id = Column(Integer, ForeignKey('users.id'))
+    approved_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    is_return = Column(Boolean, default=False)
+    return_reason = Column(Enum(ReturnReason), nullable=True)
+    original_allotment_id = Column(Integer, ForeignKey('allotments.id'), nullable=True)
+
+    status = Column(String, default="pending")  # pending, approved, rejected
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    approved_at = Column(DateTime, nullable=True)
+
+    from_user = relationship("User", foreign_keys=[from_user_id])
+    to_user = relationship("User", foreign_keys=[to_user_id])
+    initiated_by = relationship("User", foreign_keys=[initiated_by_id])
+    approved_by = relationship("User", foreign_keys=[approved_by_id])
+
+    items = relationship("AllotmentItem", back_populates="allotment", cascade="all, delete-orphan")
+    original_allotment = relationship("Allotment", remote_side=[id])
+
+
