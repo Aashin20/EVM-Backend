@@ -35,3 +35,20 @@ class NotificationType(str, enum.Enum):
     FLC_PENDING = "FLC Pending"
     OTHER = "Other"
 
+class EVMComponent(Base):
+    __tablename__ = 'evm_components'
+
+    id = Column(Integer, primary_key=True)
+    serial_number = Column(String, unique=True, nullable=False)
+    component_type = Column(Enum(EVMComponentType), nullable=False)
+
+    status = Column(String, default="available")  # available, paired, used, failed, returned
+    is_allocated = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
+
+    current_user_id = Column(Integer, ForeignKey('users.id'))
+    current_warehouse_id = Column(Integer, ForeignKey('warehouses.id'), nullable=True)
+
+    current_user = relationship("User")
+    current_warehouse = relationship("Warehouse")
+
