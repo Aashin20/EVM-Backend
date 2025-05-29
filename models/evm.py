@@ -20,3 +20,10 @@ class ReturnReason(str, enum.Enum):
     FLC_Failed = "FLC_Failed"
     Faulty = "Faulty/Damaged"
     Other = "Other"
+
+class AllotmentType(str, enum.Enum):
+    SEC_TO_DEO = "SEC to DEO"
+    DEO_TO_BO = "DEO to Block Officer"
+    BO_TO_RO = "BO to Returning Officer"
+    RO_TO_PO = "RO to Presiding Officer"
+    RETURN = "Return"
