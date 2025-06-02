@@ -81,7 +81,8 @@ class Allotment(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     approved_at = Column(DateTime, nullable=True)
 
-   
+    is_temporary = Column(Boolean, default=False)
+    temporary_reason= Column(String, nullable=True)
 
     from_user = relationship("User", foreign_keys=[from_user_id])
     to_user = relationship("User", foreign_keys=[to_user_id])
