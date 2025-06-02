@@ -78,3 +78,41 @@ def create_allotment(data: AllotmentModel):
             "evm_component_ids": data.evm_component_ids
         }
 
+
+def approve_allotment(allotment_id: int, approver_id: int):
+    
+    with Database.get_session() as db:    
+
+        allotment = db.query(Allotment).filter(Allotment.id == allotment_id).first()
+
+        if not allotment:
+            raise HTTPException(status_code=404, detail="Allotment not found.")
+
+        if allotment.status == "approved":
+            raise HTTPException(status_code=400, detail="Allotment already approved.")
+
+        if allotment.status == "rejected":
+            raise HTTPException(status_code=400, detail="Cannot approve a rejected allotment.")
+
+
+        
+        allotment.approved_by_id = approver_id
+        allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
+
+    
+        for item in allotment.items:
+            component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
+            if component:
+                component.current_user_id = allotment.to_user_id
+                component.status = "allocated"
+                component.is_allocated = True
+
+        db.commit()
+        db.refresh(allotment)
+
+        return {
+            "message": "Allotment approved successfully.",
+            "allotment_id": allotment.id,
+            "approved_at": allotment.approved_at.isoformat()
+        }
+    
