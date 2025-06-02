@@ -21,3 +21,13 @@ class AllotmentModel(BaseModel):
     return_reason: Optional[str] = None
 
 
+class AllotmentResponse(BaseModel):
+    id: int
+    allotment_type: str
+    from_user_id: Optional[int]
+    to_user_id: int
+    status: str
+    evm_component_ids: List[int]
+
+    class Config:
+        orm_mode = True
