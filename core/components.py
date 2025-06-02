@@ -2,6 +2,7 @@ from models.evm import EVMComponent, Allotment, AllotmentItem, FLCRecord, FLCBal
 from models.users import User
 from .db import Database
 from pydantic import BaseModel
+from sqlalchemy import and_
 
 class ComponentModel(BaseModel):
     serial_number: str
@@ -24,3 +25,24 @@ def new_component(component: ComponentModel):
         session.commit()
         return {"message": "Component added successfully", "component_id": new_component.id}
     
+def view_cu(district_id:int):
+
+    with Database.get_session() as session:
+        components = session.query(EVMComponent)\
+            .join(EVMComponent.current_user)\
+            .filter(
+                and_(
+                    User.district_id == district_id,
+                    EVMComponent.component_type == "CU"
+                )
+            ).all()
+        if not components:
+            return {"message": "No components found for this district"}
+        return [
+            {
+                "id": component.id,
+                "serial_number": component.serial_number,
+                "box_no": component.box_no,
+                "warehouse_id": component.current_warehouse_id,
+            } for component in components
+        ]
