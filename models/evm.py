@@ -22,12 +22,11 @@ class ReturnReason(str, enum.Enum):
     Other = "Other"
 
 class AllotmentType(str, enum.Enum):
-    SEC_TO_DEO = "SEC to DEO"
-    DEO_TO_BO = "DEO to Block Officer"
-    BO_TO_RO = "BO to Returning Officer"
-    RO_TO_PO = "RO to Presiding Officer"
-    RETURN = "Return"
-
+    SEC_TO_DEO = "SEC_TO_DEO"
+    DEO_TO_BO = "DEO_TO_BLOCK_OFFICER"
+    BO_TO_RO = "BO_TO_RETURNING_OFFICER"
+    RO_TO_PO = "RO_TO_PRESIDING_OFFICER"
+    RETURN = "RETURN"
 
 class NotificationType(str, enum.Enum):
     NEW_EVM_ALLOTMENT = "New EVM Allotment"
@@ -42,15 +41,19 @@ class EVMComponent(Base):
     serial_number = Column(String, unique=True, nullable=False)
     component_type = Column(Enum(EVMComponentType), nullable=False)
 
-    status = Column(String, default="available")  # available, paired, used, failed, returned
+    status = Column(String, default="FLC_Pending")  # available, paired, used, failed, returned
     is_allocated = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
 
+    box_no = Column(Integer, nullable=True)
     current_user_id = Column(Integer, ForeignKey('users.id'))
     current_warehouse_id = Column(Integer, ForeignKey('warehouses.id'), nullable=True)
+    pairing_id = Column(Integer, ForeignKey('pairings.id', ondelete="CASCADE"), nullable=True)
+    pairing = relationship("PairingRecord", back_populates="components")
 
     current_user = relationship("User")
     current_warehouse = relationship("Warehouse")
+
 
 
 class Allotment(Base):
@@ -77,6 +80,8 @@ class Allotment(Base):
     status = Column(String, default="pending")  # pending, approved, rejected
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     approved_at = Column(DateTime, nullable=True)
+
+   
 
     from_user = relationship("User", foreign_keys=[from_user_id])
     to_user = relationship("User", foreign_keys=[to_user_id])
