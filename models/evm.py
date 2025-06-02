@@ -54,7 +54,15 @@ class EVMComponent(Base):
     current_user = relationship("User")
     current_warehouse = relationship("Warehouse")
 
+class PairingRecord(Base):
+    __tablename__ = 'pairings'
 
+    id = Column(Integer, primary_key=True)
+    created_by_id = Column(Integer, ForeignKey('users.id'))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+
+    created_by = relationship("User")
+    components = relationship("EVMComponent", back_populates="pairing")
 
 class Allotment(Base):
     __tablename__ = "allotments"
