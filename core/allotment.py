@@ -6,3 +6,18 @@ from models.evm import AllotmentType
 from fastapi.exceptions import HTTPException
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+class AllotmentModel(BaseModel):
+    allotment_type: AllotmentType
+    from_user_id: Optional[int] = None  #Remove for prod
+    from_local_body_id: Optional[int] = None #Remove for prod
+    from_district_id: Optional[int] = None  #Remove for prod
+
+    to_user_id: int
+    evm_component_ids: List[int]
+    to_local_body_id: Optional[int] = None
+    to_district_id: Optional[int] = None
+    original_allotment_id: Optional[int] = None
+    return_reason: Optional[str] = None
+
+
