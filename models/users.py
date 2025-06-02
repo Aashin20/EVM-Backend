@@ -6,6 +6,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 from core.db import Base
+from zoneinfo import ZoneInfo
 
 
 class LevelEnum(str, enum.Enum):
@@ -31,7 +32,14 @@ class User(Base):
     username = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")), onupdate=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+
+    created_by_id = Column(Integer, ForeignKey('users.id'))
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
+    updated_by_id = Column(Integer, ForeignKey('users.id'))
+    updated_by = relationship("User", foreign_keys=[updated_by_id])
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")), onupdate=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
 
 
     district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
