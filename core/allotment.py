@@ -116,3 +116,15 @@ def approve_allotment(allotment_id: int, approver_id: int):
             "approved_at": allotment.approved_at.isoformat()
         }
     
+
+"""
+Stage	Status	When to set it
+Created in stock	FLC Pending	Default value
+After pairing is done	paired	After FLC pairing
+After final allotment (RO→PO)	allocated_final	Allotted to PO
+During polling	used	PO used it for election
+Return flow initiated	return_pending	PO → RO/BO during returns
+Returned successfully	returned	After inspection
+Failed in FLC	flc_failed	Not passed FLC
+Damaged	faulty	Marked manually
+"""
