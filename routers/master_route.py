@@ -10,3 +10,7 @@ async def register_user(details: RegisterModel):
 @router.get("/user/view") #SEC ONLY
 async def view():
     return view_users()
+
+@router.post("/user/edit")
+async def edit(details: UpdateUserModel):
+    return edit_user(details)
