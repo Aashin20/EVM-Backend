@@ -1,0 +1,138 @@
+from utils.authtoken import create_token, verify_token
+from .db import Database
+from models.users import User
+import bcrypt
+from pydantic import BaseModel, constr
+from typing import Optional
+from sqlalchemy.orm import joinedload
+
+class RegisterModel(BaseModel):
+    username: constr(strip_whitespace=True, min_length=3)
+    password: constr(min_length=6)
+    role_id: int
+    level_id: int
+    district_id: int
+    local_body_id: Optional[int] = None
+    warehouse_id: Optional[int] = None
+
+class UpdateUserModel(BaseModel):
+    user_id: int
+    username: Optional[constr(strip_whitespace=True, min_length=3)] = None
+    password: Optional[constr(min_length=6)] = None
+    email: Optional[constr(strip_whitespace=True)] = None
+    
+
+def login(username, password):
+
+    with Database.get_session() as session:
+        current = session.query(User).options(
+            joinedload(User.role),
+            joinedload(User.level)
+        ).filter(User.username == username).first()
+        if not current:
+            return {"error": "User not found"}
+        if current.is_active is False:
+            return {"error": "Account has been deactivated, Please contact support"}
+
+    password_hash = current.password_hash
+    verification = bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+
+    if not verification:
+        return {"error": "Invalid password"}
+
+    token = create_token({"username": current.username, "role": current.role.name,"level": current.level.name, "user_id": current.id})
+
+    return {"token": token, "role": current.role, "username": current.username}
+
+
+
+def register(details: RegisterModel):
+    with Database.get_session() as session:
+        existing_user = session.query(User).filter(User.username == details.username).first()
+        if existing_user:
+            return {"error": "Username already exists"}
+        
+        hashed_password = bcrypt.hashpw(details.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        local_body_id = details.local_body_id if details.local_body_id not in [0, "0"] else None
+        warehouse_id = details.warehouse_id if details.warehouse_id not in [0, "0"] else None
+        new_user = User(
+            username=details.username,
+            password_hash=hashed_password,
+            role_id=details.role_id,
+            level_id=details.level_id,
+            district_id=details.district_id,
+            local_body_id=local_body_id,
+            warehouse_id=warehouse_id
+        )
+        session.add(new_user)
+        session.commit()
+        session.refresh(new_user)
+        role_name = new_user.role.name
+        level_name = new_user.level.name
+        user_id = new_user.id
+        username = new_user.username
+
+    token = create_token({
+        "username": username,
+        "role": role_name,
+        "level": level_name,
+        "user_id": user_id
+    })
+
+    return {
+        "token": token,
+        "role": role_name,
+        "level": level_name,
+        "user_id": user_id
+    }
+
+def view_users():
+    with Database.get_session() as session:
+        users = session.query(User).all()
+        if not users:
+            return {"message": "No users found"}
+        return [
+            {
+                "id": user.id,
+                "name": user.username,
+                "email" : user.email,
+                "created_by": user.created_by.username if user.created_by else None,
+                "updated_by": user.updated_by.username if user.updated_by else None,
+                "updated_at": user.updated_at,
+                "created_at": user.created_at,
+                "status": "Active" if user.is_active else "Inactive",
+                "role": user.role.name,
+                "district_id": user.district_id,
+                "local_body_id": user.local_body_id,
+              
+            } for user in users
+        ]
+    
+def edit_user(details: UpdateUserModel):
+    with Database.get_session() as session:
+        user = session.query(User).filter(User.id == details.user_id).first()
+        if not user:
+            return {"error": "User not found"}
+        
+        if details.username:
+            existing_user = session.query(User).filter(User.username == details.username, User.id != details.user_id).first()
+            if existing_user:
+                return {"error": "Username already exists"}
+            user.username = details.username
+        
+        if details.password:
+            user.password_hash = bcrypt.hashpw(details.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        if details.email:
+            existing_email = session.query(User).filter(User.email == details.email, User.id != details.user_id).first()
+            if existing_email:
+                return {"error": "Email already exists"}
+            user.email = details.email
+
+        session.commit()
+        session.refresh(user)
+        
+        return {
+            "message": "User updated successfully",
+        }
