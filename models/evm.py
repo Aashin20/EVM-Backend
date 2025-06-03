@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime,
-    ForeignKey, Enum
+    ForeignKey, Enum, Date 
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -44,7 +44,7 @@ class EVMComponent(Base):
     status = Column(String, default="FLC_Pending")  # available, paired, used, failed, returned
     is_allocated = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
-
+    dom = Column(Date, nullable=True)
     box_no = Column(Integer, nullable=True)
     current_user_id = Column(Integer, ForeignKey('users.id'))
     current_warehouse_id = Column(Integer, ForeignKey('warehouses.id'), nullable=True)
@@ -75,8 +75,8 @@ class Allotment(Base):
 
     from_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
     to_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
-    from_local_body_id = Column(Integer, ForeignKey('local_bodies.id'), nullable=True)
-    to_local_body_id = Column(Integer, ForeignKey('local_bodies.id'), nullable=True)
+    from_local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=True)
+    to_local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=True)
 
     initiated_by_id = Column(Integer, ForeignKey('users.id'))
     approved_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
