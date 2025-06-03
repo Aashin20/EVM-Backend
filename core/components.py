@@ -3,39 +3,83 @@ from models.users import User
 from .db import Database
 from pydantic import BaseModel
 from sqlalchemy import and_
+from typing import Optional, List
+from datetime import date
 
 class ComponentModel(BaseModel):
     serial_number: str
     component_type: str
-    user_id: int
+    dom: date
+    box_no: int
+    current_warehouse_id: Optional[int] = None #Remove for prod
+    user_id: int #Remove for prod
 
-def new_component(component: ComponentModel):
-    if component.component_type not in EVMComponentType:
-        return {"error": "Invalid component type"}
-    with Database.get_session() as session:
-        existing = session.query(EVMComponent).filter(EVMComponent.serial_number == component.serial_number).first()
-        if existing:
-            return {"error": "Component with this serial number already exists"}
-        new_component = EVMComponent(
-            serial_number=component.serial_number,
-            component_type=EVMComponentType(component.component_type),
-            current_user_id=component.user_id
-        )
-        session.add(new_component)
-        session.commit()
-        return {"message": "Component added successfully", "component_id": new_component.id}
+
+def new_components(components: List[ComponentModel]):
+    failed_serials = []
     
-def view_cu(district_id:int):
+    with Database.get_session() as session:
+        to_add = []
+        seen_serials = set()
+        
+        for component in components:
+
+            if component.component_type not in EVMComponentType.__members__:
+                failed_serials.append(component.serial_number)
+                continue
+            
+   
+            if component.serial_number in seen_serials:
+                failed_serials.append(component.serial_number)
+                continue
+            
+  
+            existing = session.query(EVMComponent).filter(
+                EVMComponent.serial_number == component.serial_number
+            ).first()
+            
+            if existing:
+                failed_serials.append(component.serial_number)
+                continue
+            
+
+            seen_serials.add(component.serial_number)
+            
+            new_component = EVMComponent(
+                serial_number=component.serial_number,
+                component_type=EVMComponentType[component.component_type],
+                dom=component.dom,
+                box_no=component.box_no,
+                current_warehouse_id=component.current_warehouse_id,
+                current_user_id=component.user_id
+            )
+            to_add.append(new_component)
+        
+   
+        if failed_serials:
+            return {
+                "status": "error",
+                "returns": failed_serials
+            }
+        
+  
+        session.add_all(to_add)
+        session.commit()
+        
+        return {
+            "status": "200",
+            "returns": []
+        }
+    
+def view_cu(user_id: int):
 
     with Database.get_session() as session:
-        components = session.query(EVMComponent)\
-            .join(EVMComponent.current_user)\
-            .filter(
-                and_(
-                    User.district_id == district_id,
-                    EVMComponent.component_type == "CU"
-                )
-            ).all()
+        components = session.query(EVMComponent).filter(
+            and_(
+                EVMComponent.current_user_id == user_id,
+                EVMComponent.component_type == EVMComponentType.CU
+            )
+        ).all()
         if not components:
             return {"message": "No components found for this district"}
         return [
@@ -43,6 +87,8 @@ def view_cu(district_id:int):
                 "id": component.id,
                 "serial_number": component.serial_number,
                 "box_no": component.box_no,
+                "dom": component.dom,
                 "warehouse_id": component.current_warehouse_id,
             } for component in components
         ]
+    
