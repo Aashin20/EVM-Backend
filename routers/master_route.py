@@ -7,3 +7,6 @@ router = APIRouter()
 async def register_user(details: RegisterModel):
     return register(details)
 
+@router.get("/user/view") #SEC ONLY
+async def view():
+    return view_users()
