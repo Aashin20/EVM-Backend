@@ -23,3 +23,6 @@ async def cu(component_type:str,user_id: int):
 async def paired_cu(user_id: int):
     return view_paired_cu(user_id)
 
+@router.get("/view/paired/bu/{user_id}")
+async def paired_bu(user_id: int):
+    return view_paired_bu(user_id)
