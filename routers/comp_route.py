@@ -12,3 +12,6 @@ def create_new_components(components: List[ComponentModel]):
 async def cu(component_type:str,user_id: int):
     return view_components(component_type.upper(),user_id)
 
+@router.get("/paired/{user_id}")
+async def paired_cu(user_id: int):
+    return view_paired_cu(user_id)
