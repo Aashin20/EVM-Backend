@@ -71,17 +71,38 @@ def new_components(components: List[ComponentModel]):
             "returns": []
         }
     
-def view_cu(user_id: int):
+def view_components(component_type:str,user_id: int):
 
     with Database.get_session() as session:
         components = session.query(EVMComponent).filter(
             and_(
                 EVMComponent.current_user_id == user_id,
-                EVMComponent.component_type == EVMComponentType.CU
+                EVMComponent.component_type == component_type,
             )
         ).all()
         if not components:
-            return {"message": "No components found for this district"}
+            return 204
+        return [
+            {
+                "id": component.id,
+                "serial_number": component.serial_number,
+                "box_no": component.box_no,
+                "dom": component.dom,
+                "warehouse_id": component.current_warehouse_id,
+            } for component in components
+        ]
+    
+def view_paired(component_type: str, user_id: int):
+    with Database.get_session() as session:
+        components = session.query(EVMComponent).filter(
+            and_(
+                EVMComponent.current_user_id == user_id,
+                EVMComponent.component_type == component_type,
+                EVMComponent.paired == True
+            )
+        ).all()
+        if not components:
+            return 204
         return [
             {
                 "id": component.id,
