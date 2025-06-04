@@ -29,8 +29,6 @@ class AllotmentResponse(BaseModel):
     status: str
     evm_component_ids: List[int]
 
-    class Config:
-        orm_mode = True
 
 def create_allotment(data: AllotmentModel):
     with Database.get_session() as session:
@@ -39,7 +37,7 @@ def create_allotment(data: AllotmentModel):
             raise HTTPException(status_code=404, detail="One or more EVM components not found.")
         
         for comp in components:
-            if comp.status in ["used", "returned", "flc_failed", "faulty"]:
+            if comp.status in ["Polled","Counted","FLC_Pending", "FLC_Failed", "Faulty"]:
                 raise HTTPException(400, f"Component {comp.serial_number} is not available for allotment.")
             if comp.current_user_id != data.from_user_id:
                 raise HTTPException(status_code=403, detail=f"Component {comp.serial_number} is not owned by the sender.")
