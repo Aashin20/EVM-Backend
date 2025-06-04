@@ -88,17 +88,18 @@ def view_components(component_type:str,user_id: int):
                 "serial_number": component.serial_number,
                 "box_no": component.box_no,
                 "dom": component.dom,
+                "district_id": component.current_user.district_id,
                 "warehouse_id": component.current_warehouse_id,
             } for component in components
         ]
     
-def view_paired(component_type: str, user_id: int):
+def view_paired_cu(user_id: int):
     with Database.get_session() as session:
         components = session.query(EVMComponent).filter(
             and_(
                 EVMComponent.current_user_id == user_id,
-                EVMComponent.component_type == component_type,
-                EVMComponent.paired == True
+                EVMComponent.component_type == "CU",
+                EVMComponent.pairing_id.isnot(None),
             )
         ).all()
         if not components:
@@ -110,6 +111,12 @@ def view_paired(component_type: str, user_id: int):
                 "box_no": component.box_no,
                 "dom": component.dom,
                 "warehouse_id": component.current_warehouse_id,
+                "paired_components": [
+                    {
+                        "id": paired_component.id,
+                        "serial_number": paired_component.serial_number,
+                    } for paired_component in component.pairing.components
+                ]
             } for component in components
         ]
     
