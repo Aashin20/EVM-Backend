@@ -125,3 +125,24 @@ def view_paired_cu(user_id: int):
             } for component in components
         ]
     
+def view_paired_bu(user_id:int):
+    with Database.get_session() as session:
+        components = session.query(EVMComponent).filter(
+            and_(
+                EVMComponent.current_user_id == user_id,
+                EVMComponent.component_type == "BU",
+                EVMComponent.status.in_(["FLC_Passed", "FLC_Failed"]),
+            )
+        ).all()
+        if not components:
+            return 204
+        return [
+            {
+                "id": component.id,
+                "serial_number": component.serial_number,
+                "box_no": component.box_no,
+                "dom": component.dom,
+                "status": component.status,
+                "warehouse_id": component.current_warehouse_id,
+            } for component in components
+        ]
