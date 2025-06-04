@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.db import Database
 import uvicorn
-from routers import auth_route,comp_route,allot_route,master_route
+from routers import auth_route,comp_route,allot_route,master_route,flc_route
 
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ app.include_router(auth_route.router, prefix="/auth", tags=["auth"])
 app.include_router(comp_route.router, prefix="/components", tags=["components"])
 app.include_router(allot_route.router, prefix="/allotments", tags=["allotments"])    
 app.include_router(master_route.router, prefix="/master", tags=["master"])
+app.include_router(flc_route.router, prefix="/flc", tags=["flc"])
 
 @app.get("/health")
 async def health_check():
