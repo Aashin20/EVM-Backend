@@ -36,10 +36,24 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")), onupdate=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
 
     created_by_id = Column(Integer, ForeignKey('users.id'))
-    created_by = relationship("User", foreign_keys=[created_by_id])
+    created_by = relationship(
+        "User",
+        foreign_keys=[created_by_id],
+        remote_side=[id],
+        uselist=False,
+        backref="created_users"
+    )
 
+    
     updated_by_id = Column(Integer, ForeignKey('users.id'))
-    updated_by = relationship("User", foreign_keys=[updated_by_id])
+    updated_by = relationship(
+        "User",
+        foreign_keys=[updated_by_id],
+        remote_side=[id],
+        uselist=False,
+        backref="updated_users"
+    )
+
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")), onupdate=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
 
 
