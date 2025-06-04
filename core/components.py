@@ -110,12 +110,17 @@ def view_paired_cu(user_id: int):
                 "serial_number": component.serial_number,
                 "box_no": component.box_no,
                 "dom": component.dom,
+                "status": component.status,
                 "warehouse_id": component.current_warehouse_id,
                 "paired_components": [
                     {
                         "id": paired_component.id,
+                        "component_type": paired_component.component_type,
                         "serial_number": paired_component.serial_number,
-                    } for paired_component in component.pairing.components
+                    } 
+                    for paired_component in component.pairing.components
+                    if paired_component.id != component.id
+
                 ]
             } for component in components
         ]
