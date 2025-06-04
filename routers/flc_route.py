@@ -7,3 +7,7 @@ router = APIRouter()
 @router.post("/cu")
 async def flc_cu_bulk(data: List[FLCCUModel]):
     return flc_cu(data)
+
+@router.post("/bu")
+async def flc_bu_bulk(data: List[FLCBUModel]):
+    return flc_bu(data)
