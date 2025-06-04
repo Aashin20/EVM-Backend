@@ -20,6 +20,7 @@ class UpdateUserModel(BaseModel):
     username: Optional[constr(strip_whitespace=True, min_length=3)] = None
     password: Optional[constr(min_length=6)] = None
     email: Optional[constr(strip_whitespace=True)] = None
+    is_active: Optional[constr(strip_whitespace=True)] = None
     
 
 def login(username, password):
@@ -129,10 +130,15 @@ def edit_user(details: UpdateUserModel):
             if existing_email:
                 return {"error": "Email already exists"}
             user.email = details.email
-
+        if details.is_active is not None:
+            if details.is_active == "Inactive":
+                user.is_active = False
+            else:
+                user.is_active = True
+        user.updated_by_id = details.user_id
+        
+        #user.updated_by = get_current_user(user_id)
         session.commit()
         session.refresh(user)
         
-        return {
-            "message": "User updated successfully",
-        }
+        return 200
