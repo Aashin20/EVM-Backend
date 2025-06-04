@@ -9,9 +9,10 @@ from sqlalchemy.orm import joinedload
 class RegisterModel(BaseModel):
     username: constr(strip_whitespace=True, min_length=3)
     password: constr(min_length=6)
+    email: constr(strip_whitespace=True, min_length=3)
     role_id: int
     level_id: int
-    district_id: int
+    district_id: Optional[int] = None
     local_body_id: Optional[int] = None
     warehouse_id: Optional[int] = None
 
@@ -60,6 +61,7 @@ def register(details: RegisterModel):
         new_user = User(
             username=details.username,
             password_hash=hashed_password,
+            email=details.email,
             role_id=details.role_id,
             level_id=details.level_id,
             district_id=details.district_id,
@@ -70,6 +72,7 @@ def register(details: RegisterModel):
         session.commit()
         session.refresh(new_user)
         role_name = new_user.role.name
+        email = new_user.email
         level_name = new_user.level.name
         user_id = new_user.id
         username = new_user.username
@@ -77,6 +80,7 @@ def register(details: RegisterModel):
     token = create_token({
         "username": username,
         "role": role_name,
+        "email": email,
         "level": level_name,
         "user_id": user_id
     })
