@@ -120,36 +120,37 @@ class FLCRecord(Base):
     id = Column(Integer, primary_key=True)
     cu_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)
     dmm_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)
-    dmm_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)
-    pink_paper_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)
+    dmm_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)         
+    pink_paper_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False) 
 
 
-    cu_box_no = Column(String)
-    bu_box_no = Column(String)
+    box_no = Column(String)
+   
 
     passed = Column(Boolean, default=False)
-    remarks = Column(String)
+    remarks = Column(String, nullable=True)
 
     flc_by_id = Column(Integer, ForeignKey('users.id'))
     flc_date = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
 
     cu = relationship("EVMComponent", foreign_keys=[cu_id])
     dmm = relationship("EVMComponent", foreign_keys=[dmm_id])
-    dmm_seal = relationship("EVMComponent", foreign_keys=[dmm_seal_id])
-    pink_paper_seal = relationship("EVMComponent", foreign_keys=[pink_paper_seal_id])
     flc_by = relationship("User")
-
-    bus = relationship("FLCBallotUnit", back_populates="flc", cascade="all, delete-orphan")
+    dmm_seal = relationship("EVMComponent", foreign_keys=[dmm_seal_id])            
+    pink_paper_seal = relationship("EVMComponent", foreign_keys=[pink_paper_seal_id])
 
 
 class FLCBallotUnit(Base):
     __tablename__ = 'flc_bu'
 
     id = Column(Integer, primary_key=True)
-    flc_id = Column(Integer, ForeignKey('flc_records.id'))
     bu_id = Column(Integer, ForeignKey('evm_components.id'))
-
-    flc = relationship("FLCRecord", back_populates="bus")
+    box_no = Column(String)
+    passed = Column(Boolean, default=False)
+    remarks = Column(String)
+    flc_by_id = Column(Integer, ForeignKey('users.id'))
+    flc_date = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    flc_by = relationship("User")
     bu = relationship("EVMComponent")
 
 
