@@ -15,14 +15,14 @@ class LevelEnum(str, enum.Enum):
     District = "District"
     Block_Panchayat = "Block_Panchayat"
     Municipality = "Municipality"
-    Corportation = "Corporation"
+    Corporation = "Corporation"
     Grama_Panchayat = "Grama_Panchayat"
 
 class LocalBodyType(str, enum.Enum):
-    Grama_Panchayat  = "Grama_Panchayat"
+    Grama_Panchayat = "Grama_Panchayat"
     Block_Panchayat = "Block_Panchayat"
     Municipality = "Municipality"
-    Corportation = "Corporation"
+    Corporation = "Corporation"
 
 
 class User(Base):
@@ -59,7 +59,7 @@ class User(Base):
 
     district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
     local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=True)
-    warehouse_id = Column(Integer, ForeignKey('warehouses.id'), nullable=True)
+    warehouse_id = Column(String, ForeignKey('warehouses.id'), nullable=True)
 
    
     role_id = Column(Integer, ForeignKey('roles.id'), nullable=False)
@@ -103,7 +103,7 @@ class District(Base):
 class Warehouse(Base):
     __tablename__ = 'warehouses'
 
-    id = Column(Integer, primary_key=True)
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     location = Column(String)
     district_id = Column(Integer, ForeignKey('districts.id'))
