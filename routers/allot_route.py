@@ -17,3 +17,7 @@ async def approve(allotment_id: int,current_user: dict = Depends(get_current_use
 async def reject(allotment_id: int,current_user: dict = Depends(get_current_user)):  
     return reject_allotment(allotment_id,current_user['user_id'])
 
+@router.get("/queue/")
+async def queue(current_user: dict = Depends(get_current_user)):
+    return approval_queue(current_user['user_id'])
+    
