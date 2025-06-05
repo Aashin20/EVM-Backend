@@ -1,6 +1,6 @@
 from utils.authtoken import create_token, verify_token
 from .db import Database
-from models.users import User
+from models.users import User, LocalBody
 import bcrypt
 from pydantic import BaseModel, constr
 from typing import Optional
@@ -23,28 +23,31 @@ class UpdateUserModel(BaseModel):
     email: Optional[constr(strip_whitespace=True)] = None
     is_active: Optional[constr(strip_whitespace=True)] = None
     
+class LoginModel(BaseModel):
+    email: constr(strip_whitespace=True, min_length=3)
+    password: constr(min_length=6)
 
-def login(username, password):
+def login(data: LoginModel):
 
     with Database.get_session() as session:
         current = session.query(User).options(
             joinedload(User.role),
             joinedload(User.level)
-        ).filter(User.username == username).first()
+        ).filter(User.email == data.email).first()
         if not current:
             return {"error": "User not found"}
         if current.is_active is False:
             return {"error": "Account has been deactivated, Please contact support"}
 
     password_hash = current.password_hash
-    verification = bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+    verification = bcrypt.checkpw(data.password.encode('utf-8'), password_hash.encode('utf-8'))
 
     if not verification:
         return {"error": "Invalid password"}
 
     token = create_token({"username": current.username, "role": current.role.name,"level": current.level.name, "user_id": current.id})
 
-    return {"token": token, "role": current.role, "username": current.username}
+    return {"token": token, "role": current.role, "username": current.username,"user_id":current.user_id,"status" : "success"}
 
 
 
@@ -146,3 +149,4 @@ def edit_user(details: UpdateUserModel):
         session.refresh(user)
         
         return 200
+    
