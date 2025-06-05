@@ -173,7 +173,40 @@ def approval_queue(user_id: int):
             } for allotment in pending_allotments
         ]
     
+def reject_allotment(allotment_id: int, approver_id: int):
+    with Database.get_session() as db:
+        allotment = db.query(Allotment).filter(Allotment.id == allotment_id).first()
+        if not allotment:
+            raise HTTPException(status_code=404, detail="Allotment not found.")
+        if allotment.status == "approved":
+            raise HTTPException(status_code=400, detail="Allotment already approved.")
+        if allotment.status == "rejected":
+            raise HTTPException(status_code=400, detail="Cannot approve a rejected allotment.")
 
+        # Fetch approver user to get warehouse_id
+        approver = db.query(User).filter(User.id == approver_id).first()
+        if not approver:
+            raise HTTPException(status_code=404, detail="Approver not found.")
+
+        allotment.status = "rejected"
+        allotment.approved_by_id = approver_id
+        allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
+
+        for item in allotment.items:
+            component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
+            if component:
+                component.current_user_id = allotment.to_user_id
+                component.current_warehouse_id = approver.warehouse_id  # Fixed here
+
+        db.commit()
+        db.refresh(allotment)
+
+        return {
+            "message": "Allotment rejected successfully.",
+            "allotment_id": allotment.id,
+            "approved_at": allotment.approved_at.isoformat(),
+            "updated_components": [item.evm_component_id for item in allotment.items]
+        }
 
 
 """
