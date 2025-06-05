@@ -11,7 +11,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login") 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login") 
 
 def create_token(details: dict, expiry: int = 30):
     to_encode = details.copy()
