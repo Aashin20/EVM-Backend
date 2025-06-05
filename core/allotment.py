@@ -118,6 +118,61 @@ def approve_allotment(allotment_id: int, approver_id: int):
         }
 
 
+def approval_queue(user_id: int):
+    with Database.get_session() as session:
+        pending_allotments = session.query(Allotment).filter(
+            Allotment.approved_by_id.is_(None),
+            Allotment.status == "pending",
+            Allotment.to_user_id == user_id
+        ).options(
+            joinedload(Allotment.items)
+                .joinedload(AllotmentItem.evm_component)
+                .joinedload(EVMComponent.pairing)
+                .joinedload(PairingRecord.components),
+            joinedload(Allotment.from_district),
+            joinedload(Allotment.to_district),
+            joinedload(Allotment.from_local_body),
+            joinedload(Allotment.to_local_body),
+            joinedload(Allotment.from_user),
+            joinedload(Allotment.to_user)
+        ).all()
+
+        if not pending_allotments:
+            return {"message": "No pending allotments for approval."}
+
+        return [
+            {
+                "id": allotment.id,
+                "allotment_type": allotment.allotment_type,
+                "from_user_id": allotment.from_user_id,
+                "to_user_id": allotment.to_user_id,
+                "from_district_id": allotment.from_district_id,
+                "from_district_name": allotment.from_district.name if allotment.from_district else None,
+                "to_district_id": allotment.to_district_id,
+                "to_district_name": allotment.to_district.name if allotment.to_district else None,
+                "from_local_body_id": allotment.from_local_body_id,
+                "from_local_body_name": allotment.from_local_body.name if allotment.from_local_body else None,
+                "to_local_body_id": allotment.to_local_body_id,
+                "to_local_body_name": allotment.to_local_body.name if allotment.to_local_body else None,
+                "components": [
+                    {
+                        "serial_number": item.evm_component.serial_number,
+                        "component_type": item.evm_component.component_type,
+                        "paired_components": [
+                            {
+                                "serial_number": paired_comp.serial_number,
+                                "component_type": paired_comp.component_type,
+                            }
+                            for paired_comp in (item.evm_component.pairing.components if item.evm_component.pairing else [])
+                            if paired_comp.id != item.evm_component.id
+                        ] if item.evm_component.pairing else []
+                    }
+                    for item in allotment.items
+                ],
+                "created_at": allotment.created_at.isoformat()
+            } for allotment in pending_allotments
+        ]
+    
 
 
 
