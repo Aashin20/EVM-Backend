@@ -150,3 +150,19 @@ def edit_user(details: UpdateUserModel):
         
         return 200
     
+def get_local_body(district_id: int,type: str):
+    with Database.get_session() as session:
+        local_body = session.query(LocalBody).filter(
+            LocalBody.district_id == district_id,
+            LocalBody.type == type
+        ).all()
+        
+        if not local_body:
+            return 204
+        
+        return [
+            {
+                "id": lb.id,
+                "name": lb.name,
+            } for lb in local_body
+        ]
