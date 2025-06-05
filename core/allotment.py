@@ -1,4 +1,5 @@
 from models.evm import AllotmentItem, FLCRecord, FLCBallotUnit,Allotment,EVMComponent
+from models.users import User
 from core.db import Database
 from pydantic import BaseModel
 from typing import Optional,List
@@ -6,6 +7,8 @@ from models.evm import AllotmentType
 from fastapi.exceptions import HTTPException
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from sqlalchemy.orm import joinedload
+from models.evm import PairingRecord, EVMComponentType
 
 class AllotmentModel(BaseModel):
     allotment_type: AllotmentType
@@ -30,80 +33,79 @@ class AllotmentResponse(BaseModel):
     evm_component_ids: List[int]
 
 
-def create_allotment(data: AllotmentModel):
-    with Database.get_session() as session:
-        components = session.query(EVMComponent).filter(EVMComponent.id.in_(data.evm_component_ids)).all()
-        if len(components) != len(data.evm_component_ids):
+def create_allotment(evm: AllotmentModel):  # Not List[AllotmentModel]
+    with Database.get_session() as db:
+        # Fetch components
+        components = db.query(EVMComponent).filter(
+            EVMComponent.id.in_(evm.evm_component_ids)
+        ).all()
+
+        if len(components) != len(evm.evm_component_ids):
             raise HTTPException(status_code=404, detail="One or more EVM components not found.")
-        
+
+        # Validate ownership
         for comp in components:
-            if comp.status in ["Polled","Counted","FLC_Pending", "FLC_Failed", "Faulty"]:
-                raise HTTPException(400, f"Component {comp.serial_number} is not available for allotment.")
-            if comp.current_user_id != data.from_user_id:
+            if comp.status in ["Polled", "Counted", "FLC_Pending", "FLC_Failed", "Faulty"]:
+                raise HTTPException(status_code=400, detail=f"Component {comp.serial_number} is not available.")
+            if comp.current_user_id != evm.from_user_id:
                 raise HTTPException(status_code=403, detail=f"Component {comp.serial_number} is not owned by the sender.")
 
+        # Create allotment
         allotment = Allotment(
-            allotment_type=data.allotment_type.value,
-            from_user_id=data.from_user_id,
-            to_user_id=data.to_user_id,
-            from_local_body_id=data.from_local_body_id,
-            to_local_body_id=data.to_local_body_id,
-            from_district_id=data.from_district_id,
-            to_district_id=data.to_district_id,
-            initiated_by_id=data.from_user_id,  #Fix for prod
-            is_return=(data.allotment_type.value == "Return"),
-            return_reason=data.return_reason,
-            original_allotment_id=data.original_allotment_id
+            allotment_type=evm.allotment_type,
+            from_user_id=evm.from_user_id,
+            to_user_id=evm.to_user_id,
+            from_local_body_id=evm.from_local_body_id,
+            to_local_body_id=evm.to_local_body_id,
+            from_district_id=evm.from_district_id,
+            to_district_id=evm.to_district_id,
+            original_allotment_id=evm.original_allotment_id,
+            return_reason=evm.return_reason,
+            initiated_by_id=evm.from_user_id,
+            is_return=(evm.allotment_type == "RETURN"),
+            status="pending"
         )
-        session.add(allotment)
-        session.commit()
-        session.refresh(allotment)
+        db.add(allotment)
+        db.commit()
+        db.refresh(allotment)
 
-        for component in components:
-            item = AllotmentItem(
-                allotment_id=allotment.id,
-                evm_component_id=component.id
-            )
-            session.add(item)
+        # Add items
+        for comp in components:
+            db.add(AllotmentItem(allotment_id=allotment.id, evm_component_id=comp.id))
 
-        session.commit()
+        db.commit()
         return {
             "id": allotment.id,
-            "allotment_type": allotment.allotment_type.value,
-            "from_user_id": allotment.from_user_id,
-            "to_user_id": allotment.to_user_id,
+            "allotment_type": allotment.allotment_type,
             "status": allotment.status,
-            "evm_component_ids": data.evm_component_ids
+            "evm_component_ids": evm.evm_component_ids
         }
 
 
 def approve_allotment(allotment_id: int, approver_id: int):
-    
-    with Database.get_session() as db:    
-
+    with Database.get_session() as db:
         allotment = db.query(Allotment).filter(Allotment.id == allotment_id).first()
-
         if not allotment:
             raise HTTPException(status_code=404, detail="Allotment not found.")
-
         if allotment.status == "approved":
             raise HTTPException(status_code=400, detail="Allotment already approved.")
-
         if allotment.status == "rejected":
             raise HTTPException(status_code=400, detail="Cannot approve a rejected allotment.")
 
+        # Fetch approver user to get warehouse_id
+        approver = db.query(User).filter(User.id == approver_id).first()
+        if not approver:
+            raise HTTPException(status_code=404, detail="Approver not found.")
 
-        
+        allotment.status = "approved"
         allotment.approved_by_id = approver_id
         allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
 
-    
         for item in allotment.items:
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             if component:
                 component.current_user_id = allotment.to_user_id
-                component.status = "allocated"
-                component.is_allocated = True
+                component.current_warehouse_id = approver.warehouse_id  # Fixed here
 
         db.commit()
         db.refresh(allotment)
@@ -111,9 +113,13 @@ def approve_allotment(allotment_id: int, approver_id: int):
         return {
             "message": "Allotment approved successfully.",
             "allotment_id": allotment.id,
-            "approved_at": allotment.approved_at.isoformat()
+            "approved_at": allotment.approved_at.isoformat(),
+            "updated_components": [item.evm_component_id for item in allotment.items]
         }
-    
+
+
+
+
 
 """
 Stage	Status	When to set it
