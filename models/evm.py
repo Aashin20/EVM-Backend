@@ -23,6 +23,7 @@ class ReturnReason(str, enum.Enum):
 
 class AllotmentType(str, enum.Enum):
     SEC_TO_DEO = "SEC_TO_DEO"
+    DEO_TO_DEO = "DEO_TO_DEO"
     DEO_TO_BO = "DEO_TO_BLOCK_OFFICER"
     BO_TO_RO = "BO_TO_RETURNING_OFFICER"
     RO_TO_PO = "RO_TO_PRESIDING_OFFICER"
@@ -47,7 +48,7 @@ class EVMComponent(Base):
     dom = Column(Date, nullable=True)
     box_no = Column(Integer, nullable=True)
     current_user_id = Column(Integer, ForeignKey('users.id'))
-    current_warehouse_id = Column(Integer, ForeignKey('warehouses.id'), nullable=True)
+    current_warehouse_id = Column(String, ForeignKey('warehouses.id'), nullable=True)
     pairing_id = Column(Integer, ForeignKey('pairings.id', ondelete="CASCADE"), nullable=True)
     pairing = relationship("PairingRecord", back_populates="components")
 
@@ -96,6 +97,10 @@ class Allotment(Base):
     to_user = relationship("User", foreign_keys=[to_user_id])
     initiated_by = relationship("User", foreign_keys=[initiated_by_id])
     approved_by = relationship("User", foreign_keys=[approved_by_id])
+    from_district = relationship("District", foreign_keys=[from_district_id])
+    to_district = relationship("District", foreign_keys=[to_district_id])
+    from_local_body = relationship("LocalBody", foreign_keys=[from_local_body_id])
+    to_local_body = relationship("LocalBody", foreign_keys=[to_local_body_id])
 
     items = relationship("AllotmentItem", back_populates="allotment", cascade="all, delete-orphan")
     original_allotment = relationship("Allotment", remote_side=[id])
