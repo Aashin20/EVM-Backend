@@ -18,16 +18,16 @@ def create_new_components(components: List[ComponentModel], current_user: dict =
     if current_user['role'] not in ['Developer', 'SEC','DEO', 'FLC Officer']:
         raise HTTPException(status_code=401, detail="Unauthorized access")
     else:
-        return new_components(components)
+        return new_components(components, current_user['user_id'])
 
-@router.get("/view/unpaired/{user_id}/{component_type}")
-async def cu(component_type:str,user_id: int,current_user: dict = Depends(get_current_user)):
-    return view_components(component_type.upper(),user_id)
+@router.get("/view/unpaired/{component_type}")
+async def cu(component_type:str,current_user: dict = Depends(get_current_user)):
+    return view_components(component_type.upper(),current_user['user_id'])
 
-@router.get("/view/paired/cu/{user_id}")
-async def paired_cu(user_id: int,current_user: dict = Depends(get_current_user)):
-    return view_paired_cu(user_id)
+@router.get("/view/paired/cu")
+async def paired_cu(current_user: dict = Depends(get_current_user)):
+    return view_paired_cu(current_user['user_id'])
 
-@router.get("/view/paired/bu/{user_id}")
-async def paired_bu(user_id: int,current_user: dict = Depends(get_current_user)):
-    return view_paired_bu(user_id)
+@router.get("/view/paired/bu")
+async def paired_bu(current_user: dict = Depends(get_current_user)):
+    return view_paired_bu(current_user['user_id'])
