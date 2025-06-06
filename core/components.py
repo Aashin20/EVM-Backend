@@ -12,10 +12,9 @@ class ComponentModel(BaseModel):
     dom: date
     box_no: int
     current_warehouse_id: Optional[int] = None #Remove for prod
-    user_id: int #Remove for prod
 
 
-def new_components(components: List[ComponentModel]):
+def new_components(components: List[ComponentModel],user_id: int):
     failed_serials = []
     
     with Database.get_session() as session:
@@ -51,7 +50,7 @@ def new_components(components: List[ComponentModel]):
                 dom=component.dom,
                 box_no=component.box_no,
                 current_warehouse_id=component.current_warehouse_id,
-                current_user_id=component.user_id
+                current_user_id=user_id,
             )
             to_add.append(new_component)
         
