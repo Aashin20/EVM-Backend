@@ -59,10 +59,16 @@ class PairingRecord(Base):
     __tablename__ = 'pairings'
 
     id = Column(Integer, primary_key=True)
+    evm_id = Column(String(50), unique=True, nullable=True,default=None)
+    
     created_by_id = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    
+    completed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
-    created_by = relationship("User")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    completed_by = relationship("User", foreign_keys=[completed_by_id])
     components = relationship("EVMComponent", back_populates="pairing")
 
 class Allotment(Base):
