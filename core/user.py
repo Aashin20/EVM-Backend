@@ -39,15 +39,21 @@ def login(data: LoginModel):
         if current.is_active is False:
             return {"error": "Account has been deactivated, Please contact support"}
 
-    password_hash = current.password_hash
-    verification = bcrypt.checkpw(data.password.encode('utf-8'), password_hash.encode('utf-8'))
+        password_hash = current.password_hash
+        verification = bcrypt.checkpw(data.password.encode('utf-8'), password_hash.encode('utf-8'))
 
-    if not verification:
-        return {"error": "Invalid password"}
+        if not verification:
+            return {"error": "Invalid password"}
 
-    token = create_token({"username": current.username, "role": current.role.name,"level": current.level.name, "user_id": current.id})
+        token = create_token({"username": current.username, "role": current.role.name,"level": current.level.name, "user_id": current.id})
 
-    return {"token": token, "role": current.role, "username": current.username,"user_id":current.user_id,"status" : "success"}
+        return {"token": token, 
+                "role": current.role, 
+                "username": current.username,
+                "user_id":current.id,
+                "district_id": current.district_id if current.district_id else None,
+                "district_name": current.district.name if current.district else None,
+                "status" : "success"}
 
 
 
