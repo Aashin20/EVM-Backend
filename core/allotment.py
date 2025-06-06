@@ -33,9 +33,10 @@ class AllotmentResponse(BaseModel):
     evm_component_ids: List[int]
 
 
-def create_allotment(evm: AllotmentModel):  # Not List[AllotmentModel]
+
+
+def create_allotment(evm: AllotmentModel):  
     with Database.get_session() as db:
-        # Fetch components
         components = db.query(EVMComponent).filter(
             EVMComponent.id.in_(evm.evm_component_ids)
         ).all()
@@ -43,14 +44,12 @@ def create_allotment(evm: AllotmentModel):  # Not List[AllotmentModel]
         if len(components) != len(evm.evm_component_ids):
             raise HTTPException(status_code=404, detail="One or more EVM components not found.")
 
-        # Validate ownership
         for comp in components:
             if comp.status in ["Polled", "Counted", "FLC_Pending", "FLC_Failed", "Faulty"]:
                 raise HTTPException(status_code=400, detail=f"Component {comp.serial_number} is not available.")
             if comp.current_user_id != evm.from_user_id:
                 raise HTTPException(status_code=403, detail=f"Component {comp.serial_number} is not owned by the sender.")
 
-        # Create allotment
         allotment = Allotment(
             allotment_type=evm.allotment_type,
             from_user_id=evm.from_user_id,
@@ -69,7 +68,7 @@ def create_allotment(evm: AllotmentModel):  # Not List[AllotmentModel]
         db.commit()
         db.refresh(allotment)
 
-        # Add items
+
         for comp in components:
             db.add(AllotmentItem(allotment_id=allotment.id, evm_component_id=comp.id))
 
@@ -105,7 +104,7 @@ def approve_allotment(allotment_id: int, approver_id: int):
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             if component:
                 component.current_user_id = allotment.to_user_id
-                component.current_warehouse_id = approver.warehouse_id  # Fixed here
+                component.current_warehouse_id = approver.warehouse_id
 
         db.commit()
         db.refresh(allotment)
@@ -196,7 +195,7 @@ def reject_allotment(allotment_id: int, approver_id: int):
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             if component:
                 component.current_user_id = allotment.to_user_id
-                component.current_warehouse_id = approver.warehouse_id  # Fixed here
+                component.current_warehouse_id = approver.warehouse_id  
 
         db.commit()
         db.refresh(allotment)
@@ -208,15 +207,3 @@ def reject_allotment(allotment_id: int, approver_id: int):
             "updated_components": [item.evm_component_id for item in allotment.items]
         }
 
-
-"""
-Stage	Status	When to set it
-Created in stock	FLC Pending	Default value
-After pairing is done	paired	After FLC pairing
-After final allotment (RO→PO)	allocated_final	Allotted to PO
-During polling	used	PO used it for election
-Return flow initiated	return_pending	PO → RO/BO during returns
-Returned successfully	returned	After inspection
-Failed in FLC	flc_failed	Not passed FLC
-Damaged	faulty	Marked manually
-"""
