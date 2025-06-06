@@ -14,7 +14,7 @@ class FLCCUModel(BaseModel):
     box_no: str
     passed: bool
     remarks: Optional[str] = None
-    flc_by_id: int
+    
 
 class FLCBUModel(BaseModel):
     bu_serial: str
@@ -25,7 +25,7 @@ class FLCBUModel(BaseModel):
 
 
 
-def flc_cu(data_list: List[FLCCUModel]):
+def flc_cu(data_list: List[FLCCUModel],user_id: int):
     with Database.get_session() as session:
         for data in data_list:
             cu = session.query(EVMComponent).filter_by(serial_number=data.cu_serial).first()
@@ -67,10 +67,10 @@ def flc_cu(data_list: List[FLCCUModel]):
                 box_no=data.box_no,
                 passed=data.passed,
                 remarks=data.remarks,
-                flc_by_id=data.flc_by_id
+                flc_by_id=user_id
             )
             session.add(flc)
-            pairing = PairingRecord(created_by_id=data.flc_by_id)
+            pairing = PairingRecord(created_by_id=user_id)
             session.add(pairing)
             session.flush()
 
@@ -87,7 +87,6 @@ def flc_cu(data_list: List[FLCCUModel]):
 
         session.commit()
     return Response(status_code=200)
-
 
 
 
