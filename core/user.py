@@ -182,3 +182,17 @@ def get_local_body(district_id: int,type: str):
         ]
     
 
+def get_districts():
+    with Database.get_session() as session:
+        districts = session.query(District).distinct().all()
+        
+        if not districts:
+            return 204
+        
+        return [
+            {
+                "id": district.id,
+                "name": district.name,
+            } for district in districts
+        ]
+    
