@@ -217,3 +217,17 @@ def get_panchayath(block_id: str):
             } for lb in panchayath
         ]
     
+def get_user(local_body_id: str):
+    with Database.get_session() as session:
+        user = session.query(User).filter(User.local_body_id == local_body_id).first()
+        if not user:
+            return {"error": "User not found"}
+        
+        return {
+            "id": user.id,
+            "username": user.username,
+            "district_id": user.district_id,
+            "local_body_id": user.local_body_id,
+            "warehouse_id": user.warehouse_id
+        }
+    
