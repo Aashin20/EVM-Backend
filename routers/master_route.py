@@ -30,3 +30,7 @@ async def edit(details: UpdateUserModel,current_user: dict = Depends(get_current
 @router.post("/ps/add")
 async def add_ps_endpoint(data: List[PollingStationModel],current_user: dict = Depends(get_current_user)):
     return add_ps(data)
+
+@router.get("/ps/pending/{district_id}")
+async def ps_view(district_id: int,current_user: dict = Depends(get_current_user)):
+    return view_ps(district_id)
