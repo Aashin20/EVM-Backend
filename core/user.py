@@ -274,3 +274,22 @@ def add_ps(datas: List[PollingStationModel]):
         session.commit()
         return Response(status_code=200)
 
+def approve_ps(ps_ids: List[int], approver_id: int):
+    with Database.get_session() as session:
+        # Fetch polling stations
+        polling_stations = session.query(PollingStation).filter(PollingStation.id.in_(ps_ids)).all()
+
+        # Validate
+        found_ids = {ps.id for ps in polling_stations}
+        not_found = [ps_id for ps_id in ps_ids if ps_id not in found_ids]
+        if not_found:
+            raise HTTPException(status_code=404, detail=f"Polling stations not found: {not_found}")
+
+        # Approve all
+        for ps in polling_stations:
+            ps.status = "approved"
+            ps.approver_id = approver_id
+
+        session.commit()
+        return Response(status_code=200)
+    
