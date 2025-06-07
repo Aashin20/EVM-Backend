@@ -43,7 +43,8 @@ def flc_cu(data_list: List[FLCCUModel],user_id: int):
                     serial_number=data.dmm_seal_serial,
                     component_type=EVMComponentType.DMM_SEAL,
                     status="FLC_Passed" if data.passed else "FLC_Failed",
-                    is_verified=True
+                    is_verified=True,
+                    box_no=data.box_no
                 )
                 session.add(dmm_seal)
                 session.flush()
@@ -54,7 +55,8 @@ def flc_cu(data_list: List[FLCCUModel],user_id: int):
                     serial_number=data.pink_paper_seal_serial,
                     component_type=EVMComponentType.PINK_PAPER_SEAL,
                     status="FLC_Passed" if data.passed else "FLC_Failed",
-                    is_verified=True
+                    is_verified=True,
+                    box_no=data.box_no
                 )
                 session.add(pink_paper_seal)
                 session.flush()
@@ -75,6 +77,8 @@ def flc_cu(data_list: List[FLCCUModel],user_id: int):
             session.flush()
 
             cu.pairing_id = pairing.id
+            cu.box_no = data.box_no
+            dmm.box_no = data.box_no
             dmm.pairing_id = pairing.id
             dmm_seal.pairing_id = pairing.id
             pink_paper_seal.pairing_id = pairing.id
@@ -105,6 +109,7 @@ def flc_bu(datas: list[FLCBUModel]):
                 flc_by_id=data.flc_by_id
             )
             session.add(flc)
+            bu.box_no = data.box_no
             if data.passed:
                 bu.status = "FLC_Passed"
             else:
