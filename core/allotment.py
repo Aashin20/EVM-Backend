@@ -213,3 +213,148 @@ def reject_allotment(allotment_id: int, approver_id: int):
 
         return Response(status_code=200)
 
+def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: int):
+    with Database.get_session() as db:
+        validation_errors = []
+        
+        try:
+            for idx, commissioning_data in enumerate(commissioning_list):
+                # Convert ps_no to integer if it's a string
+                try:
+                    ps_no = int(commissioning_data.ps_no)
+                except ValueError:
+                    validation_errors.append(f"Row {idx+1}: Invalid polling station number: {commissioning_data.ps_no}")
+                    continue
+                
+                # 1. Validate CU
+                cu = db.query(EVMComponent).filter(
+                    EVMComponent.serial_number == commissioning_data.cu_serial,
+                    EVMComponent.component_type == EVMComponentType.CU
+                ).first()
+                
+                if not cu:
+                    validation_errors.append(f"Row {idx+1}: CU {commissioning_data.cu_serial} not found")
+                    continue
+                
+                if not cu.pairing_id:
+                    validation_errors.append(f"Row {idx+1}: CU {commissioning_data.cu_serial} does not have a pairing record")
+                    continue
+                
+                # 2. Validate pairing
+                pairing = db.query(PairingRecord).filter(
+                    PairingRecord.id == cu.pairing_id
+                ).first()
+                
+                if not pairing:
+                    validation_errors.append(f"Row {idx+1}: Pairing record not found")
+                    continue
+                
+                if pairing.polling_station_id:
+                    validation_errors.append(f"Row {idx+1}: Already assigned to polling station")
+                    continue
+                
+                if pairing.evm_id:
+                    validation_errors.append(f"Row {idx+1}: Already has EVM number")
+                    continue
+                
+                # 3. Validate polling station
+                polling_station = db.query(PollingStation).filter(
+                    PollingStation.id == ps_no
+                ).first()
+                
+                if not polling_station:
+                    validation_errors.append(f"Row {idx+1}: Polling station {ps_no} not found")
+                    continue
+                
+                # 4. Validate all BUs
+                for bu_serial in commissioning_data.bu_serial:
+                    bu = db.query(EVMComponent).filter(
+                        EVMComponent.serial_number == bu_serial,
+                        EVMComponent.component_type == EVMComponentType.BU
+                    ).first()
+                    
+                    if not bu:
+                        validation_errors.append(f"Row {idx+1}: BU {bu_serial} not found")
+                    elif bu.pairing_id and bu.pairing_id != cu.pairing_id:
+                        validation_errors.append(f"Row {idx+1}: BU {bu_serial} already assigned elsewhere")
+        
+        except Exception as e:
+            print(f"Validation error: {str(e)}")
+            print(traceback.format_exc())
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error during validation: {str(e)}"
+            )
+        
+        # If ANY validation errors, reject entire batch
+        if validation_errors:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Validation failed. No EVMs were commissioned.",
+                    "errors": validation_errors
+                }
+            )
+        
+        # All validations passed - now apply all changes
+        try:
+            for commissioning_data in commissioning_list:
+                # Convert ps_no to integer
+                ps_no = int(commissioning_data.ps_no)
+                
+                # Get CU and pairing (we know they exist from validation)
+                cu = db.query(EVMComponent).filter(
+                    EVMComponent.serial_number == commissioning_data.cu_serial,
+                    EVMComponent.component_type == EVMComponentType.CU
+                ).first()
+                
+                pairing = db.query(PairingRecord).filter(
+                    PairingRecord.id == cu.pairing_id
+                ).first()
+                
+                # Update pairing
+                pairing.evm_id = commissioning_data.evm_no
+                pairing.polling_station_id = ps_no
+                pairing.completed_by_id = user_id
+                pairing.completed_at = datetime.now(ZoneInfo("Asia/Kolkata"))
+                
+                # Update CU status
+                cu.status = "commissioned"
+                
+                # Assign BUs to pairing and update their status
+                for bu_serial in commissioning_data.bu_serial:
+                    bu = db.query(EVMComponent).filter(
+                        EVMComponent.serial_number == bu_serial,
+                        EVMComponent.component_type == EVMComponentType.BU
+                    ).first()
+                    bu.pairing_id = cu.pairing_id
+                    bu.status = "commissioned"
+                
+                # Update status for all other components in this pairing
+                other_components = db.query(EVMComponent).filter(
+                    EVMComponent.pairing_id == cu.pairing_id,
+                    EVMComponent.component_type.in_([
+                        EVMComponentType.DMM,
+                        EVMComponentType.DMM_SEAL,
+                        EVMComponentType.PINK_PAPER_SEAL
+                    ])
+                ).all()
+                
+                for component in other_components:
+                    component.status = "commissioned"
+            
+            db.commit()
+            
+            return {
+                "message": f"Successfully commissioned {len(commissioning_list)} EVMs",
+                "count": len(commissioning_list)
+            }
+            
+        except Exception as e:
+            db.rollback()
+            print(f"Commission error: {str(e)}")
+            print(traceback.format_exc())
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database error during commission: {str(e)}"
+            )
