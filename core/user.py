@@ -309,3 +309,25 @@ def reject_ps(ps_ids: List[int], approver_id: int):
         session.commit()
         return Response(status_code=200)
 
+def view_ps(district_id: int):
+    with Database.get_session() as session:
+        polling_stations = (
+            session.query(PollingStation,LocalBody.name)
+            .join(LocalBody, PollingStation.local_body_id == LocalBody.id)
+            .filter(LocalBody.district_id == district_id)
+            .filter(PollingStation.status == "pending")
+            .all()
+        )
+
+        grouped_data = {}
+        for ps, local_body_name in polling_stations:
+            if local_body_name not in grouped_data:
+                grouped_data[local_body_name] = []
+            
+            grouped_data[local_body_name].append({
+                "psname": ps.name,
+                "ps_id": ps.id
+            })
+
+        return [grouped_data]
+
