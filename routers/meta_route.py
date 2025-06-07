@@ -15,3 +15,7 @@ async def district(current_user: dict = Depends(get_current_user)):
 @router.get("/panchayath/{block_id}")
 async def panchayath(block_id: str,current_user: dict = Depends(get_current_user)):
     return get_panchayath(block_id)
+
+@router.get("/user/{local_body_id}")
+async def user(local_body_id: str, current_user: dict = Depends(get_current_user)):
+    return get_user(local_body_id)
