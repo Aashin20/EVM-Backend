@@ -1,11 +1,15 @@
 from utils.authtoken import create_token, verify_token
 from .db import Database
 from models.users import User, LocalBody, District, LocalBodyType
+from models.evm import PollingStation,PairingRecord,EVMComponent,EVMComponentType
 import bcrypt
 from pydantic import BaseModel, constr
 from typing import Optional
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
+from typing import List
+from fastapi import HTTPException, Response
+
 
 class RegisterModel(BaseModel):
     username: constr(strip_whitespace=True, min_length=3)
@@ -253,3 +257,7 @@ def get_RO(local_body_id: str):
             }
             for lb in panchayath
         ]
+class PollingStationModel(BaseModel):
+    name: str
+    local_body_id: str
+
