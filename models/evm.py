@@ -22,12 +22,17 @@ class ReturnReason(str, enum.Enum):
     Other = "Other"
 
 class AllotmentType(str, enum.Enum):
-    SEC_TO_DEO = "SEC_TO_DEO"
-    DEO_TO_DEO = "DEO_TO_DEO"
-    DEO_TO_BO = "DEO_TO_BLOCK_OFFICER"
-    BO_TO_RO = "BO_TO_RETURNING_OFFICER"
-    RO_TO_PO = "RO_TO_PRESIDING_OFFICER"
-    RETURN = "RETURN"
+    SEC_TO_DEO = "SEC_TO_DEO"       
+    DEO_TO_DEO = "DEO_TO_DEO"       
+    DEO_TO_BO = "DEO_TO_BO"         
+    BO_TO_RO = "BO_TO_RO"           
+    DEO_TO_ERO = "DEO_TO_ERO"
+    ERO_TO_RO = "ERO_TO_RO"
+    RO_TO_BO = "RO_TO_BO"
+    RO_TO_ERO = "RO_TO_ERO"
+    BO_TO_DEO = "BO_TO_DEO"
+    ERO_TO_DEO = "ERO_TO_DEO"
+    DEO_TO_SEC = "DEO_TO_SEC"
 
 class NotificationType(str, enum.Enum):
     NEW_EVM_ALLOTMENT = "New EVM Allotment"
