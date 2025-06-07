@@ -34,3 +34,8 @@ async def add_ps_endpoint(data: List[PollingStationModel],current_user: dict = D
 @router.get("/ps/pending/{district_id}")
 async def ps_view(district_id: int,current_user: dict = Depends(get_current_user)):
     return view_ps(district_id)
+
+@router.post("/ps/approve")
+async def ps_approve(ps_ids: List[int],current_user: dict = Depends(get_current_user)):
+    return approve_ps(ps_ids, current_user['user_id'])
+
