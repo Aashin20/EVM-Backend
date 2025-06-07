@@ -331,3 +331,22 @@ def view_ps(district_id: int):
 
         return [grouped_data]
 
+def get_ps(local_body:str):
+    with Database.get_session() as session:
+        polling_stations = (
+            session.query(PollingStation)
+            .filter(PollingStation.local_body_id == local_body)
+            .filter(PollingStation.status == "approved")
+            .all()
+        )
+        if not polling_stations:
+            raise HTTPException(status_code=204)
+
+        return [
+            {
+                "id": ps.id,
+                "name": ps.name,
+            }
+            for ps in polling_stations
+        ]
+
