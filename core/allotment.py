@@ -31,7 +31,11 @@ class AllotmentResponse(BaseModel):
     status: str
     evm_component_ids: List[int]
 
-
+class EVMCommissioningModel(BaseModel):
+    evm_no: str
+    cu_serial : str
+    bu_serial : str
+    ps_no : str
 
 
 
@@ -205,3 +209,5 @@ def reject_allotment(allotment_id: int, approver_id: int):
             "approved_at": allotment.approved_at.isoformat(),
             "updated_components": [item.evm_component_id for item in allotment.items]
         }
+
+
