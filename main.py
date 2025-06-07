@@ -5,7 +5,6 @@ from core.db import Database
 import uvicorn
 from routers import auth_route,comp_route,allot_route,master_route,flc_route,meta_route
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Connecting to Database.....")
