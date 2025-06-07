@@ -196,3 +196,24 @@ def get_districts():
             } for district in districts
         ]
     
+def get_panchayath(block_id: str):
+    block = block_id[:5]
+    with Database.get_session() as session:
+        panchayath = session.query(LocalBody).filter(
+            LocalBody.id.startswith(block),
+            LocalBody.type == LocalBodyType.Grama_Panchayat
+        ).all()
+        if not panchayath:
+            return 204
+        return [
+            {
+                "id": lb.id,
+                "name": lb.name,
+                "users": [
+                    {
+                        "id": user.id,
+                    } for user in lb.users
+                ]
+            } for lb in panchayath
+        ]
+    
