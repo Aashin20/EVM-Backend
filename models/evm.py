@@ -60,13 +60,15 @@ class PairingRecord(Base):
 
     id = Column(Integer, primary_key=True)
     evm_id = Column(String(50), unique=True, nullable=True,default=None)
-    
+    polling_station_id = Column(Integer, ForeignKey('polling_stations.id'), nullable=True)
+
     created_by_id = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     
     completed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
-
+     
+    polling_station = relationship("PollingStation", back_populates="pairing_records")
     created_by = relationship("User", foreign_keys=[created_by_id])
     completed_by = relationship("User", foreign_keys=[completed_by_id])
     components = relationship("EVMComponent", back_populates="pairing")
@@ -192,3 +194,13 @@ class AuditLog(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
 
     user = relationship("User")
+
+class PollingStation(Base):
+    __tablename__ = 'polling_stations'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=False)
+    
+    local_body = relationship("LocalBody", back_populates="polling_stations")
+    pairing_records = relationship("PairingRecord", back_populates="polling_station")
