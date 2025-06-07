@@ -39,3 +39,6 @@ async def ps_view(district_id: int,current_user: dict = Depends(get_current_user
 async def ps_approve(ps_ids: List[int],current_user: dict = Depends(get_current_user)):
     return approve_ps(ps_ids, current_user['user_id'])
 
+@router.post("/ps/reject")
+async def ps_reject(ps_ids: List[int], current_user: dict = Depends(get_current_user)):
+    return reject_ps(ps_ids, current_user['user_id'])
