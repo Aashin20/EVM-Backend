@@ -21,3 +21,7 @@ async def reject(allotment_id: int,current_user: dict = Depends(get_current_user
 async def queue(current_user: dict = Depends(get_current_user)):
     return approval_queue(current_user['user_id'])
 
+@router.post("/commission")
+async def evm_commissioning_route(data: List[EVMCommissioningModel],user_id=1):
+    return evm_commissioning(data, user_id)
+    
