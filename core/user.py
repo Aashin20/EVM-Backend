@@ -261,3 +261,16 @@ class PollingStationModel(BaseModel):
     name: str
     local_body_id: str
 
+def add_ps(datas: List[PollingStationModel]):
+    with Database.get_session() as session:
+        for data in datas:
+            local_body = session.query(LocalBody).filter(LocalBody.id == data.local_body_id).first()
+            if not local_body:
+                raise HTTPException(status_code=404, detail=f"Local body with ID {data.local_body_id} not found")   
+            
+            new_ps = PollingStation(name=data.name, status="pending",local_body_id=data.local_body_id)
+            session.add(new_ps)
+        
+        session.commit()
+        return Response(status_code=200)
+
