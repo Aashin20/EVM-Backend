@@ -11,3 +11,7 @@ async def local_body(district_id:int,type: str,current_user: dict = Depends(get_
 @router.get("/bodies/district")
 async def district(current_user: dict = Depends(get_current_user)):
     return get_districts()
+
+@router.get("/panchayath/{block_id}")
+async def panchayath(block_id: str,current_user: dict = Depends(get_current_user)):
+    return get_panchayath(block_id)
