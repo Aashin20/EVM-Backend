@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.db import Database
 import uvicorn
-from routers import auth_route,comp_route,allot_route,master_route,flc_route,meta_route
+from routers import auth_route,comp_route,allot_route,master_route,flc_route,meta_route,return_route
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,6 +35,7 @@ app.include_router(allot_route.router, prefix="/allotments", tags=["allotments"]
 app.include_router(master_route.router, prefix="/master", tags=["master"])
 app.include_router(flc_route.router, prefix="/flc", tags=["flc"])
 app.include_router(meta_route.router, prefix="/meta", tags=["meta"])
+app.include_router(return_route.router,prefix="/status", tags=["status"])
 
 @app.get("/health")
 async def health_check():
