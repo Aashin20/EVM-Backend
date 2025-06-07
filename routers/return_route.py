@@ -9,3 +9,7 @@ router = APIRouter()
 @router.get('/{local_body_id}/{status}')
 async def to_polling(local_body_id:str,status:str,current_user: dict = Depends(get_current_user)):
     return status_change(local_body_id,status)
+
+@router.post('/decommission')
+async def evm_decommission(local_body_id: str, evm_ids: List[str],current_user: dict = Depends(get_current_user)):
+    return decommission_evms(local_body_id, evm_ids)
