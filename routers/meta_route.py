@@ -19,3 +19,7 @@ async def panchayath(block_id: str,current_user: dict = Depends(get_current_user
 @router.get("/user/{local_body_id}")
 async def user(local_body_id: str, current_user: dict = Depends(get_current_user)):
     return get_user(local_body_id)
+
+@router.get("/RO/{local_body_id}")
+async def RO(local_body_id:str,current_user: dict = Depends(get_current_user)):
+    return get_RO(local_body_id)
