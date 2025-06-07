@@ -231,3 +231,25 @@ def get_user(local_body_id: str):
             "warehouse_id": user.warehouse_id
         }
     
+def get_RO(local_body_id: str):
+    local = local_body_id[:5]
+    with Database.get_session() as session:
+        panchayath = session.query(LocalBody).filter(
+            LocalBody.id.like(f"{local}%"),
+            or_(
+                LocalBody.type == LocalBodyType.Corporation_RO.value,
+                LocalBody.type == LocalBodyType.Municipality_RO.value
+            )
+        ).all()
+
+        if not panchayath:
+            return 204
+
+        return [
+            {
+                "id": lb.id,
+                "name": lb.name,
+                "users": [{"id": user.id} for user in lb.users]
+            }
+            for lb in panchayath
+        ]
