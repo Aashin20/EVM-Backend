@@ -350,3 +350,29 @@ def get_ps(local_body:str):
             for ps in polling_stations
         ]
 
+def get_evm_from_ps(local_body: str):
+    with Database.get_session() as session:
+        results = (
+            session.query(PollingStation, PairingRecord.evm_id, EVMComponent.status)
+            .outerjoin(PairingRecord, PairingRecord.polling_station_id == PollingStation.id)
+            .outerjoin(EVMComponent, 
+                (EVMComponent.pairing_id == PairingRecord.id) & 
+                (EVMComponent.component_type == EVMComponentType.CU)
+            )
+            .filter(PollingStation.local_body_id == local_body)
+            .filter(PollingStation.status == "approved")
+            .all()
+        )
+        
+        if not results:
+            raise HTTPException(status_code=204)
+
+        return [
+            {
+                "ps_id": ps.id,
+                "ps_name": ps.name,
+                "evm_no": evm_id,
+                "status": cu_status
+            }
+            for ps, evm_id, cu_status in results
+        ]
