@@ -3,7 +3,7 @@ from models.users import User
 from core.db import Database
 from pydantic import BaseModel
 from typing import Optional,List
-from models.evm import AllotmentType
+from models.evm import AllotmentType, PollingStation
 from fastapi.exceptions import HTTPException
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -12,7 +12,6 @@ from models.evm import PairingRecord, EVMComponentType
 
 class AllotmentModel(BaseModel):
     allotment_type: AllotmentType
-    from_user_id: Optional[int] = None  #Remove for prod
     from_local_body_id: Optional[int] = None #Remove for prod
     from_district_id: Optional[int] = None  #Remove for prod
 
@@ -35,7 +34,8 @@ class AllotmentResponse(BaseModel):
 
 
 
-def create_allotment(evm: AllotmentModel):  
+
+def create_allotment(evm: AllotmentModel,from_user_id: int):  
     with Database.get_session() as db:
         components = db.query(EVMComponent).filter(
             EVMComponent.id.in_(evm.evm_component_ids)
@@ -47,12 +47,12 @@ def create_allotment(evm: AllotmentModel):
         for comp in components:
             if comp.status in ["Polled", "Counted", "FLC_Pending", "FLC_Failed", "Faulty"]:
                 raise HTTPException(status_code=400, detail=f"Component {comp.serial_number} is not available.")
-            if comp.current_user_id != evm.from_user_id:
+            if comp.current_user_id != from_user_id:
                 raise HTTPException(status_code=403, detail=f"Component {comp.serial_number} is not owned by the sender.")
 
         allotment = Allotment(
             allotment_type=evm.allotment_type,
-            from_user_id=evm.from_user_id,
+            from_user_id=from_user_id,
             to_user_id=evm.to_user_id,
             from_local_body_id=evm.from_local_body_id,
             to_local_body_id=evm.to_local_body_id,
@@ -60,7 +60,7 @@ def create_allotment(evm: AllotmentModel):
             to_district_id=evm.to_district_id,
             original_allotment_id=evm.original_allotment_id,
             return_reason=evm.return_reason,
-            initiated_by_id=evm.from_user_id,
+            initiated_by_id=from_user_id,
             is_return=(evm.allotment_type == "RETURN"),
             status="pending"
         )
@@ -182,7 +182,6 @@ def reject_allotment(allotment_id: int, approver_id: int):
         if allotment.status == "rejected":
             raise HTTPException(status_code=400, detail="Cannot approve a rejected allotment.")
 
-        # Fetch approver user to get warehouse_id
         approver = db.query(User).filter(User.id == approver_id).first()
         if not approver:
             raise HTTPException(status_code=404, detail="Approver not found.")
@@ -206,4 +205,3 @@ def reject_allotment(allotment_id: int, approver_id: int):
             "approved_at": allotment.approved_at.isoformat(),
             "updated_components": [item.evm_component_id for item in allotment.items]
         }
-
