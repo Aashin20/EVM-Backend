@@ -5,10 +5,12 @@ from pydantic import BaseModel
 from typing import Optional,List
 from models.evm import AllotmentType, PollingStation
 from fastapi.exceptions import HTTPException
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import joinedload
 from models.evm import PairingRecord, EVMComponentType
+from fastapi import Response
+import traceback
 
 class AllotmentModel(BaseModel):
     allotment_type: AllotmentType
@@ -34,8 +36,8 @@ class AllotmentResponse(BaseModel):
 class EVMCommissioningModel(BaseModel):
     evm_no: str
     cu_serial : str
-    bu_serial : str
-    ps_no : str
+    bu_serial : List[str]
+    ps_no : int
 
 
 
@@ -106,10 +108,21 @@ def approve_allotment(allotment_id: int, approver_id: int):
 
         for item in allotment.items:
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
-            if component:
-                component.current_user_id = allotment.to_user_id
-                component.current_warehouse_id = approver.warehouse_id
+            if not component:
+                continue
 
+            # Always update the directly allotted component
+            component.current_user_id = allotment.to_user_id
+            component.current_warehouse_id = approver.warehouse_id
+
+            # If the component is part of a pairing, update all in the pair
+            if component.pairing_id:
+                paired_components = db.query(EVMComponent).filter(
+                    EVMComponent.pairing_id == component.pairing_id
+                ).all()
+                for paired in paired_components:
+                    paired.current_user_id = allotment.to_user_id
+                    paired.current_warehouse_id = approver.warehouse_id
         db.commit()
         db.refresh(allotment)
 
@@ -184,212 +197,19 @@ def reject_allotment(allotment_id: int, approver_id: int):
         if allotment.status == "approved":
             raise HTTPException(status_code=400, detail="Allotment already approved.")
         if allotment.status == "rejected":
-            raise HTTPException(status_code=400, detail="Cannot approve a rejected allotment.")
+            raise HTTPException(status_code=400, detail="Allotment already rejected.")
 
         approver = db.query(User).filter(User.id == approver_id).first()
         if not approver:
             raise HTTPException(status_code=404, detail="Approver not found.")
 
+        # Just mark as rejected — don't update component ownership
         allotment.status = "rejected"
         allotment.approved_by_id = approver_id
         allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
 
-        for item in allotment.items:
-            component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
-            if component:
-                component.current_user_id = allotment.to_user_id
-                component.current_warehouse_id = approver.warehouse_id  
-
         db.commit()
         db.refresh(allotment)
 
-        return {
-            "message": "Allotment rejected successfully.",
-            "allotment_id": allotment.id,
-            "approved_at": allotment.approved_at.isoformat(),
-            "updated_components": [item.evm_component_id for item in allotment.items]
-        }
+        return Response(status_code=200)
 
-
-def evm_commissioning(data: List[EVMCommissioningModel], user_id: int):
-    results = []
-    
-    with Database.get_session() as session:
-        try:
-            for commissioning_data in data:
-                try:
-                    # Step 1: Find the CU component
-                    cu_component = session.query(EVMComponent).filter(
-                        EVMComponent.serial_number == commissioning_data.cu_serial,
-                        EVMComponent.component_type == EVMComponentType.CU
-                    ).first()
-                    
-                    if not cu_component or not cu_component.pairing_id:
-                        results.append({
-                            "status": "error",
-                            "evm_no": commissioning_data.evm_no,
-                            "message": f"CU {commissioning_data.cu_serial} not found or not paired"
-                        })
-                        continue
-                    
-                    pairing_id = cu_component.pairing_id
-                    
-                    # Step 2: Process all BUs
-                    bu_components = []
-                    bu_error = False
-                    
-                    for bu_serial in commissioning_data.bu_serial:
-                        bu_component = session.query(EVMComponent).filter(
-                            EVMComponent.serial_number == bu_serial,
-                            EVMComponent.component_type == EVMComponentType.BU
-                        ).first()
-                        
-                        if not bu_component:
-                            results.append({
-                                "status": "error",
-                                "evm_no": commissioning_data.evm_no,
-                                "message": f"BU {bu_serial} not found"
-                            })
-                            bu_error = True
-                            break
-                        
-                        # Check if BU is already assigned to another pairing
-                        if bu_component.pairing_id and bu_component.pairing_id != pairing_id:
-                            results.append({
-                                "status": "error",
-                                "evm_no": commissioning_data.evm_no,
-                                "message": f"BU {bu_serial} is already assigned to another pairing"
-                            })
-                            bu_error = True
-                            break
-                        
-                        bu_components.append(bu_component)
-                    
-                    if bu_error:
-                        continue
-                    
-                    # Step 3: Find the polling station
-                    polling_station = session.query(PollingStation).filter(
-                        PollingStation.id == int(commissioning_data.ps_no)
-                    ).first()
-                    
-                    if not polling_station:
-                        results.append({
-                            "status": "error",
-                            "evm_no": commissioning_data.evm_no,
-                            "message": f"Polling Station {commissioning_data.ps_no} not found"
-                        })
-                        continue
-                    
-                    # Step 4: Update the pairing record
-                    pairing_record = session.query(PairingRecord).filter(
-                        PairingRecord.id == pairing_id
-                    ).first()
-                    
-                    if not pairing_record:
-                        results.append({
-                            "status": "error",
-                            "evm_no": commissioning_data.evm_no,
-                            "message": "Pairing record not found"
-                        })
-                        continue
-                    
-                    # Check if already commissioned
-                    if pairing_record.evm_id:
-                        results.append({
-                            "status": "error",
-                            "evm_no": commissioning_data.evm_no,
-                            "message": f"Pairing already commissioned with EVM {pairing_record.evm_id}"
-                        })
-                        continue
-                    
-                    # Update pairing record
-                    pairing_record.evm_id = commissioning_data.evm_no
-                    pairing_record.polling_station_id = polling_station.id
-                    pairing_record.completed_by_id = user_id
-                    pairing_record.completed_at = datetime.now(ZoneInfo("Asia/Kolkata"))
-                    
-                    # Update all BUs to be paired and commissioned
-                    for bu_component in bu_components:
-                        bu_component.pairing_id = pairing_id
-                        bu_component.status = "commissioned"
-                    
-                    # Update CU status
-                    cu_component.status = "commissioned"
-                    
-                    # Update all other components in this pairing to commissioned
-                    # (DMM, DMM_SEAL, PINK_PAPER_SEAL if they exist)
-                    all_components = session.query(EVMComponent).filter(
-                        EVMComponent.pairing_id == pairing_id
-                    ).all()
-                    
-                    for component in all_components:
-                        component.status = "commissioned"
-                    
-                    results.append({
-                        "status": "success",
-                        "evm_no": commissioning_data.evm_no,
-                        "message": "EVM commissioning completed successfully",
-                        "data": {
-                            "pairing_id": pairing_id,
-                            "evm_no": commissioning_data.evm_no,
-                            "cu_serial": commissioning_data.cu_serial,
-                            "bu_serials": commissioning_data.bu_serial,
-                            "bu_count": len(bu_components),
-                            "polling_station": {
-                                "id": polling_station.id,
-                                "name": polling_station.name
-                            }
-                        }
-                    })
-                    
-                except Exception as e:
-                    results.append({
-                        "status": "error",
-                        "evm_no": commissioning_data.evm_no,
-                        "message": f"Error during commissioning: {str(e)}"
-                    })
-            
-            # Check results and commit/rollback
-            successful_count = sum(1 for r in results if r["status"] == "success")
-            
-            if successful_count > 0:
-                session.commit()
-                
-                # Return overall status
-                if successful_count == len(data):
-                    return {
-                        "status": "success",
-                        "message": f"Successfully commissioned all {successful_count} EVMs",
-                        "successful_count": successful_count,
-                        "failed_count": 0,
-                        "results": results
-                    }
-                else:
-                    return {
-                        "status": "partial_success",
-                        "message": f"Successfully commissioned {successful_count} out of {len(data)} EVMs",
-                        "successful_count": successful_count,
-                        "failed_count": len(data) - successful_count,
-                        "results": results
-                    }
-            else:
-                session.rollback()
-                return {
-                    "status": "error",
-                    "message": "All commissioning attempts failed",
-                    "successful_count": 0,
-                    "failed_count": len(data),
-                    "results": results
-                }
-                
-        except Exception as e:
-            session.rollback()
-            return {
-                "status": "error",
-                "message": f"Critical error during batch processing: {str(e)}",
-                "successful_count": 0,
-                "failed_count": len(data),
-                "results": []
-            }
-        
