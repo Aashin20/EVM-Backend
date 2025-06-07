@@ -1,7 +1,8 @@
 from fastapi import APIRouter   
-from core.user import register, RegisterModel, view_users,UpdateUserModel,edit_user
+from core.user import register, RegisterModel, view_users,UpdateUserModel,edit_user,add_ps,approve_ps,reject_ps,view_ps,PollingStationModel,get_ps
 from utils.authtoken import get_current_user
 from fastapi import Depends
+from typing import List
 
 router = APIRouter()
 
@@ -25,3 +26,7 @@ async def edit(details: UpdateUserModel,current_user: dict = Depends(get_current
         return {"status": 401, "message": "Unauthorized access"}
     else:
         return edit_user(details)
+
+@router.post("/ps/add")
+async def add_ps_endpoint(data: List[PollingStationModel],current_user: dict = Depends(get_current_user)):
+    return add_ps(data)
