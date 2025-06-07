@@ -8,3 +8,6 @@ router = APIRouter()
 async def local_body(district_id:int,type: str,current_user: dict = Depends(get_current_user)):
     return get_local_body(district_id,type)
 
+@router.get("/bodies/district")
+async def district(current_user: dict = Depends(get_current_user)):
+    return get_districts()
