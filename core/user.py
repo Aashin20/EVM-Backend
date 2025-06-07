@@ -1,10 +1,11 @@
 from utils.authtoken import create_token, verify_token
 from .db import Database
-from models.users import User, LocalBody
+from models.users import User, LocalBody, District, LocalBodyType
 import bcrypt
 from pydantic import BaseModel, constr
 from typing import Optional
 from sqlalchemy.orm import joinedload
+from sqlalchemy import or_
 
 class RegisterModel(BaseModel):
     username: constr(strip_whitespace=True, min_length=3)
@@ -13,7 +14,7 @@ class RegisterModel(BaseModel):
     role_id: int
     level_id: int
     district_id: Optional[int] = None
-    local_body_id: Optional[int] = None
+    local_body_id: Optional[str] = None
     warehouse_id: Optional[int] = None
 
 class UpdateUserModel(BaseModel):
@@ -53,6 +54,8 @@ def login(data: LoginModel):
                 "user_id":current.id,
                 "district_id": current.district_id if current.district_id else None,
                 "district_name": current.district.name if current.district else None,
+                "local_body_id": current.local_body_id if current.local_body_id else None,
+                "local_body_name": current.local_body.name if current.local_body else None,
                 "status" : "success"}
 
 
@@ -170,5 +173,12 @@ def get_local_body(district_id: int,type: str):
             {
                 "id": lb.id,
                 "name": lb.name,
+                "users": [
+                    {
+                        "id": user.id,
+                    } for user in lb.users
+                ]
             } for lb in local_body
         ]
+    
+
