@@ -23,6 +23,8 @@ class LocalBodyType(str, enum.Enum):
     Block_Panchayat = "Block_Panchayat"
     Municipality = "Municipality"
     Corporation = "Corporation"
+    Municipality_RO = "Municipality_RO"
+    Corporation_RO = "Corporation_RO"
 
 
 class User(Base):
@@ -119,6 +121,6 @@ class LocalBody(Base):
     name = Column(String, nullable=False)
     type = Column(Enum(LocalBodyType), nullable=False)
     district_id = Column(Integer, ForeignKey('districts.id'), nullable=False)
-
     district = relationship("District", back_populates="local_bodies")
+    polling_stations = relationship("PollingStation", back_populates="local_body")
     users = relationship("User", back_populates="local_body")
