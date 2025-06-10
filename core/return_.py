@@ -2,12 +2,17 @@ from typing import List
 from core.db import Database
 from models.evm import EVMComponent, PairingRecord,PollingStation,FLCRecord,FLCBallotUnit
 from fastapi import Response,HTTPException
+from pydantic import BaseModel
+from sqlalchemy import or_
+
+
+class DecommissionModel(BaseModel):
+    local_body_id: str
+    evm_ids: List[str]
 
 def status_change(local_body: str,status: str):
     if status not in ["polling","polled","counted"]:
         raise HTTPException(status_code=204)
-    elif status == "polling":
-        current_status = "commissioned"
     elif status == "polled":
         current_status = "polling"
     elif status == "counted":
@@ -28,22 +33,23 @@ def status_change(local_body: str,status: str):
         session.commit()
         return Response(status_code=200)
 
-def decommission_evms(local_body_id: str, evm_ids: List[str]):
+
+def decommission_evms(data:DecommissionModel):
     with Database.get_session() as session:
         try:
             # Get all pairings
             pairings = (
                 session.query(PairingRecord)
                 .join(PollingStation)
-                .filter(PollingStation.local_body_id == local_body_id)
-                .filter(PairingRecord.evm_id.in_(evm_ids))
+                .filter(PollingStation.local_body_id == data.local_body_id)
+                .filter(PairingRecord.evm_id.in_(data.evm_ids))
                 .all()
             )
             
             if not pairings:
                 raise HTTPException(status_code=404, detail="No EVMs found")
             
-            if len(pairings) != len(evm_ids):
+            if len(pairings) != len(data.evm_ids):
                 raise HTTPException(status_code=404, detail="Some EVMs not found")
             
             # First validate ALL EVMs are eligible
@@ -61,34 +67,29 @@ def decommission_evms(local_body_id: str, evm_ids: List[str]):
                 if not (cu and cu.status == "counted" and dmm and dmm.status == "counted"):
                     raise HTTPException(status_code=400, detail=f"EVM {pairing.evm_id} not eligible")
             
-            # First delete related FLC records to avoid foreign key violations
+            # Get all component IDs that will be affected
+            component_ids = []
             for pairing in pairings:
                 components = session.query(EVMComponent).filter(
                     EVMComponent.pairing_id == pairing.id
                 ).all()
-                
-                for comp in components:
-                    # Delete any FLC records that reference this component
-                    if comp.component_type == "DMM_SEAL":
-                        session.query(FLCRecord).filter(
-                            FLCRecord.dmm_seal_id == comp.id
-                        ).delete(synchronize_session=False)
-                    elif comp.component_type == "PINK_PAPER_SEAL":
-                        session.query(FLCRecord).filter(
-                            FLCRecord.pink_paper_seal_id == comp.id
-                        ).delete(synchronize_session=False)
-                    elif comp.component_type == "DMM":
-                        session.query(FLCRecord).filter(
-                            FLCRecord.dmm_id == comp.id
-                        ).delete(synchronize_session=False)
-                    elif comp.component_type == "CU":
-                        session.query(FLCRecord).filter(
-                            FLCRecord.cu_id == comp.id
-                        ).delete(synchronize_session=False)
-                    elif comp.component_type == "BU":
-                        session.query(FLCBallotUnit).filter(
-                            FLCBallotUnit.bu_id == comp.id
-                        ).delete(synchronize_session=False)
+                component_ids.extend([comp.id for comp in components])
+            
+            # Delete ALL FLC records that reference ANY of these components
+            # This is more comprehensive than the previous approach
+            session.query(FLCRecord).filter(
+                or_(
+                    FLCRecord.dmm_seal_id.in_(component_ids),
+                    FLCRecord.pink_paper_seal_id.in_(component_ids),
+                    FLCRecord.dmm_id.in_(component_ids),
+                    FLCRecord.cu_id.in_(component_ids)
+                )
+            ).delete(synchronize_session=False)
+            
+            # Delete all FLCBallotUnit records
+            session.query(FLCBallotUnit).filter(
+                FLCBallotUnit.bu_id.in_(component_ids)
+            ).delete(synchronize_session=False)
             
             # Now handle components and pairings
             for pairing in pairings:
