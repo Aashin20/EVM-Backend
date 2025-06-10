@@ -319,7 +319,7 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                 pairing.completed_at = datetime.now(ZoneInfo("Asia/Kolkata"))
                 
                 # Update CU status
-                cu.status = "commissioned"
+                cu.status = "polling"
                 
                 # Assign BUs to pairing and update their status
                 for bu_serial in commissioning_data.bu_serial:
@@ -328,7 +328,7 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                         EVMComponent.component_type == EVMComponentType.BU
                     ).first()
                     bu.pairing_id = cu.pairing_id
-                    bu.status = "commissioned"
+                    bu.status = "polling"
                 
                 # Update status for all other components in this pairing
                 other_components = db.query(EVMComponent).filter(
@@ -341,7 +341,7 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                 ).all()
                 
                 for component in other_components:
-                    component.status = "commissioned"
+                    component.status = "polling"
             
             db.commit()
             
