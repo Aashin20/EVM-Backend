@@ -107,7 +107,6 @@ class Warehouse(Base):
 
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    location = Column(String)
     district_id = Column(Integer, ForeignKey('districts.id'))
 
     district = relationship("District", back_populates="warehouses")
