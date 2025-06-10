@@ -3,6 +3,7 @@ from core.user import register, RegisterModel, view_users,UpdateUserModel,edit_u
 from utils.authtoken import get_current_user
 from fastapi import Depends
 from typing import List
+from core.components import get_details
 
 router = APIRouter()
 
@@ -44,5 +45,9 @@ async def ps_reject(ps_ids: List[int], current_user: dict = Depends(get_current_
     return reject_ps(ps_ids, current_user['user_id'])
 
 @router.get("/ps/view/{local_body_id}")
-async def view(local_body_id:str):
+async def view(local_body_id:str,current_user: dict = Depends(get_current_user)):
     return get_ps(local_body_id)
+
+@router.get("/dashboard")
+async def dash(current_user: dict = Depends(get_current_user)):
+    return get_details(current_user)
