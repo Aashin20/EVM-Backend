@@ -197,3 +197,21 @@ def view_paired_bu(user_id:int):
         ]
 
 
+def get_details(user_id:int):
+    with Database.get_session() as session:
+        cu_count = session.query(EVMComponent).filter_by(current_user_id=user_id, component_type="CU").count()
+        dmm_count = session.query(EVMComponent).filter_by(current_user_id=user_id, component_type="DMM").count()
+        bu_count = session.query(EVMComponent).filter_by(current_user_id=user_id, component_type="BU").count()
+
+        flc_pending = session.query(EVMComponent).filter_by(current_user_id=user_id, status="FLC_Pending").count()
+        flc_passed = session.query(EVMComponent).filter_by(current_user_id=user_id, status="FLC_Passed").count()
+        flc_failed = session.query(EVMComponent).filter_by(current_user_id=user_id, status="FLC_Failed").count()
+
+        return {
+            "CU": cu_count,
+            "DMM": dmm_count,
+            "BU": bu_count,
+            "FLC_Pending": flc_pending,
+            "FLC_Passed": flc_passed,
+            "FLC_Failed": flc_failed
+        }
