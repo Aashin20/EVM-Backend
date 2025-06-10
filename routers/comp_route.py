@@ -14,11 +14,11 @@ class PairedBU(BaseModel):
 router = APIRouter()
 
 @router.post("/new")
-def create_new_components(components: List[ComponentModel], current_user: dict = Depends(get_current_user)):
+async def create_new_components(components: List[ComponentModel],order_no:str,current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['Developer', 'SEC','DEO', 'FLC Officer']:
         raise HTTPException(status_code=401, detail="Unauthorized access")
     else:
-        return new_components(components, current_user['user_id'])
+        return new_components(components, order_no,current_user['user_id'])
 
 @router.get("/view/unpaired/{component_type}")
 async def cu(component_type:str,current_user: dict = Depends(get_current_user)):
