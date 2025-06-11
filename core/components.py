@@ -1,4 +1,5 @@
-from models.evm import EVMComponent, Allotment, AllotmentItem, FLCRecord, FLCBallotUnit, EVMComponentType
+from models.evm import EVMComponent, EVMComponentType
+from models.logs import EVMComponentLogs
 from models.users import User,Warehouse
 from .db import Database
 from pydantic import BaseModel
@@ -9,6 +10,7 @@ from annexure.Annex_1 import CU_1,DMM_1
 from fastapi.responses import FileResponse
 from fastapi import Response
 from models.users import LevelEnum
+from fastapi.exceptions import HTTPException
 
 class ComponentModel(BaseModel):
     serial_number: str
@@ -18,19 +20,20 @@ class ComponentModel(BaseModel):
     current_warehouse_id: Optional[int] = None #Remove for prod
 
 
-def new_components(components: List[ComponentModel],phy_order_no:str, user_id: int):
+def new_components(components: List[ComponentModel], phy_order_no: str, user_id: int):
     failed_serials = []
     
     with Database.get_session() as session:
         to_add = []
         seen_serials = set()
         
-        # Get current user and their district information
+        # Get current user and validate
         current_user = session.query(User).filter(User.id == user_id).first()
-        district_name = "Unknown District"
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
         
-        if current_user and current_user.district:
-            district_name = current_user.district.name
+        
+        district_name = current_user.district.name
             
         for component in components:
             if component.component_type not in EVMComponentType.__members__:
@@ -62,9 +65,13 @@ def new_components(components: List[ComponentModel],phy_order_no:str, user_id: i
             to_add.append(new_component)
         
         if failed_serials:
-            return Response(
-                status_code=400
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Failed to process components with serial numbers: {', '.join(failed_serials)}"
             )
+        
+        if not to_add:
+            raise HTTPException(status_code=400, detail="No valid components to add")
         
         # Fetch warehouse names for all components
         warehouse_ids = {str(comp.current_warehouse_id) for comp in to_add if comp.current_warehouse_id is not None}
@@ -78,47 +85,61 @@ def new_components(components: List[ComponentModel],phy_order_no:str, user_id: i
         session.add_all(to_add)
         session.commit()
         
-        # Generate PDF if we successfully added components
-        if to_add:
-            # Get component type from the first component (assuming all are the same type)
-            component_type = components[0].component_type if components else "UNKNOWN"
-            if component_type in ["CU","BU"]:
-                pdf_filename = f"Annexure_1_{component_type}.pdf"
-                
-                # Generate the PDF with district name parameter
-                CU_1(
-                    components=to_add, 
-                    component_type=component_type, 
-                    warehouse_names=warehouse_names, 
-                    filename=pdf_filename,
-                    alloted_to=district_name,
-                    order_no=phy_order_no  # Pass the district name
-                )
-                
-                # Return the PDF as a file response
-                return FileResponse(
-                    path=pdf_filename,
-                    filename=pdf_filename,
-                    media_type="application/pdf"
-                )
-            else:
-                pdf_filename = f"Annexure_1_{component_type}.pdf"
-                DMM_1(
-                    components=to_add, 
-                    component_type=component_type, 
-                    filename=pdf_filename,
-                    alloted_to=district_name,
-                    order_no=phy_order_no
-                    )
-                return FileResponse(
-                    path=pdf_filename,
-                    filename=pdf_filename,
-                    media_type="application/pdf"
-                )
+        # CREATE LOGS - Add corresponding entries to logs table
+        logs_to_add = []
+        for component in to_add:
+            component_log = EVMComponentLogs(
+                serial_number=component.serial_number,
+                component_type=component.component_type,
+                status=component.status,
+                is_verified=component.is_verified,
+                dom=component.dom,
+                box_no=component.box_no,
+                current_user_id=component.current_user_id,
+                current_warehouse_id=component.current_warehouse_id,
+                pairing_id=component.pairing_id
+            )
+            logs_to_add.append(component_log)
+        
+        session.add_all(logs_to_add)
+        session.commit()
+        
+        # Generate PDF - validate component type
+        component_type = components[0].component_type if components else None
+        if not component_type:
+            raise HTTPException(status_code=400, detail="Component type is required")
             
-        # If no components were added but there were no errors
-        return Response(status_code=200)
+        if component_type in ["CU", "BU"]:
+            pdf_filename = f"Annexure_1_{component_type}.pdf"
             
+            CU_1(
+                components=to_add, 
+                component_type=component_type, 
+                warehouse_names=warehouse_names, 
+                filename=pdf_filename,
+                alloted_to=district_name,
+                order_no=phy_order_no
+            )
+            
+            return FileResponse(
+                path=pdf_filename,
+                filename=pdf_filename,
+                media_type="application/pdf"
+            )
+        else:
+            pdf_filename = f"Annexure_1_{component_type}.pdf"
+            DMM_1(
+                components=to_add, 
+                component_type=component_type, 
+                filename=pdf_filename,
+                alloted_to=district_name,
+                order_no=phy_order_no
+            )
+            return FileResponse(
+                path=pdf_filename,
+                filename=pdf_filename,
+                media_type="application/pdf"
+            )
     
 def view_components(component_type:str,user_id: int):
 
@@ -139,6 +160,7 @@ def view_components(component_type:str,user_id: int):
                 "dom": component.dom,
                 "district_id": component.current_user.district_id,
                 "warehouse_id": component.current_warehouse_id,
+                "status": component.status
             } for component in components
         ]
     
