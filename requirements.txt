@@ -1,9 +1,9 @@
-fastapi==0.115.12
-pydantic==2.11.5
-python-dotenv==1.1.0
-bcrypt==0.3.2
-python_jose==3.4.0
-reportlab==4.2.5
-SQLAlchemy==2.0.35
-uvicorn==0.34.3
+fastapi
+pydantic
+python-dotenv
+bcrypt
+python_jose
+reportlab
+SQLAlchemy
+uvicorn
 psycopg2
