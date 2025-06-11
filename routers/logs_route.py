@@ -71,3 +71,18 @@ def get_pairing_logs(
     if current_user['role'] not in ['SEC']:
         raise HTTPException(status_code=401, detail="Unauthorized access")
     return get_pairing_logs_data(page, page_size, start_date, end_date)
+
+
+@router.get("/flc-records")
+def get_flc_record_logs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get FLC record logs with pagination and date filtering"""
+    if current_user['role'] not in ['SEC']:
+        raise HTTPException(status_code=401, detail="Unauthorized access")
+    return get_flc_record_logs_data(page, page_size, start_date, end_date)
+
