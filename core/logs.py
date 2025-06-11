@@ -60,3 +60,10 @@ def get_local_body_name(db, local_body_id: str):
     return local_body.name if local_body else None
 
 
+def get_warehouse_name(db, warehouse_id: str):
+    if not warehouse_id:
+        return None
+    warehouse = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    return warehouse.name if warehouse else None
+
+
