@@ -67,3 +67,10 @@ def get_warehouse_name(db, warehouse_id: str):
     return warehouse.name if warehouse else None
 
 
+def get_polling_station_name(db, polling_station_id: int):
+    if not polling_station_id:
+        return None
+    ps = db.query(PollingStation).filter(PollingStation.id == polling_station_id).first()
+    return ps.name if ps else None
+
+
