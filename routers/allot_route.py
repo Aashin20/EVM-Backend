@@ -14,9 +14,9 @@ async def allot_evm(data: AllotmentModel,current_user: dict = Depends(get_curren
 async def approve(allotment_id: int,current_user: dict = Depends(get_current_user)):  
     return approve_allotment(allotment_id,current_user['user_id'])
 
-@router.get("/reject/{allotment_id}")
-async def reject(allotment_id: int,current_user: dict = Depends(get_current_user)):  
-    return reject_allotment(allotment_id,current_user['user_id'])
+@router.get("/reject/{allotment_id}/{reject_reason}")
+async def reject(allotment_id: int,reject_reason:str,current_user: dict = Depends(get_current_user)):  
+    return reject_allotment(allotment_id,reject_reason,current_user['user_id'])
 
 @router.get("/queue/")
 async def queue(current_user: dict = Depends(get_current_user)):
