@@ -9,7 +9,9 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
 from typing import List
 from fastapi import HTTPException, Response
-
+from models.users import Role
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 class RegisterModel(BaseModel):
     username: constr(strip_whitespace=True, min_length=3)
@@ -376,3 +378,31 @@ def get_evm_from_ps(local_body: str):
             }
             for ps, evm_id, cu_status in results
         ]
+    
+def mass_deactivate(role_name: str, user_id:int):
+    with Database.get_session() as db:
+        try:
+            role = db.query(Role).filter(Role.name == role_name).first()
+            
+            active_users = db.query(User).filter(
+                User.role_id == role.id,
+                User.is_active == True
+            ).all()
+            
+            if not active_users:
+                return Response(status_code=204)
+            
+        
+            for user in active_users:
+                # Deactivate the user
+                user.is_active = False
+                user.updated_by_id = user_id
+                user.updated_at = datetime.now(ZoneInfo("Asia/Kolkata"))
+            
+            db.commit()
+            
+            return Response(status_code=200)
+            
+        except Exception as e:
+            db.rollback()
+            return Response(status_code=400)
