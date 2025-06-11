@@ -19,4 +19,4 @@ async def flc_bu_bulk(data: List[FLCBUModel],current_user: dict = Depends(get_cu
     if current_user['role'] not in ['Developer', 'FLC Officer']:
         return {"status": 401, "message": "Unauthorized access"}
     else:
-        return flc_bu(data)
+        return flc_bu(data,current_user['user_id'])
