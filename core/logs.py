@@ -20,3 +20,22 @@ def get_paginated_response(query, page: int, page_size: int):
     }
 
 
+def apply_date_filter(query, model, start_date: Optional[date], end_date: Optional[date]):
+    timestamp_field = None
+    
+    if hasattr(model, 'created_at'):
+        timestamp_field = model.created_at
+    elif hasattr(model, 'created_on'):
+        timestamp_field = model.created_on
+    elif hasattr(model, 'flc_date'):
+        timestamp_field = model.flc_date
+    
+    if timestamp_field is not None:
+        if start_date:
+            query = query.filter(timestamp_field >= start_date)
+        if end_date:
+            query = query.filter(timestamp_field <= end_date)
+    
+    return query
+
+
