@@ -54,7 +54,7 @@ async def view(local_body_id:str,current_user: dict = Depends(get_current_user))
 async def dash(current_user: dict = Depends(get_current_user)):
     return get_details(current_user['user_id'])
 
-@router.post("/deactivate/{role}")
+@router.get("/toggle/{role}")
 async def deactivate(role:str,current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['Developer', 'SEC']:
         return {"status": 401, "message": "Unauthorized access"}
