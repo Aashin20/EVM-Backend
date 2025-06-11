@@ -213,4 +213,4 @@ def flc_bu(datas: list[FLCBUModel],user_id: int):
         
         session.commit()
     
-    return 200
+    return Response(status_code=200)
