@@ -56,4 +56,6 @@ async def dash(current_user: dict = Depends(get_current_user)):
 
 @router.post("/deactivate/{role}")
 async def deactivate(role:str,current_user: dict = Depends(get_current_user)):
+    if current_user['role'] not in ['Developer', 'SEC']:
+        return {"status": 401, "message": "Unauthorized access"}
     return mass_deactivate(role,current_user['user_id'])
