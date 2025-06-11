@@ -386,16 +386,19 @@ def mass_deactivate(role_name: str, user_id:int):
             
             active_users = db.query(User).filter(
                 User.role_id == role.id,
-                User.is_active == True
             ).all()
             
             if not active_users:
                 return Response(status_code=204)
             
-        
+            if active_users[0].is_active==True:
+                status = False
+            else:
+                status = True
             for user in active_users:
+                
                 # Deactivate the user
-                user.is_active = False
+                user.is_active = status
                 user.updated_by_id = user_id
                 user.updated_at = datetime.now(ZoneInfo("Asia/Kolkata"))
             
