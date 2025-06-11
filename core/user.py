@@ -44,7 +44,7 @@ def login(data: LoginModel):
         if not current:
             return {"error": "User not found"}
         if current.is_active is False:
-            return {"error": "Account has been deactivated, Please contact support"}
+            return {"error": "Account deactivated"}
 
         password_hash = current.password_hash
         verification = bcrypt.checkpw(data.password.encode('utf-8'), password_hash.encode('utf-8'))
@@ -70,7 +70,7 @@ def register(details: RegisterModel):
     with Database.get_session() as session:
         existing_user = session.query(User).filter(User.username == details.username).first()
         if existing_user:
-            return {"error": "Username already exists"}
+            raise HTTPException(status_code=409,detail="Username Already Exists")
         
         hashed_password = bcrypt.hashpw(details.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
@@ -114,7 +114,7 @@ def view_users():
     with Database.get_session() as session:
         users = session.query(User).all()
         if not users:
-            return {"message": "No users found"}
+            raise HTTPException(status_code=404,detail="No users found")
         return [
             {
                 "id": user.id,
@@ -136,12 +136,12 @@ def edit_user(details: UpdateUserModel):
     with Database.get_session() as session:
         user = session.query(User).filter(User.id == details.user_id).first()
         if not user:
-            return {"error": "User not found"}
+            raise HTTPException(status_code=404,detail="User not found")
         
         if details.username:
             existing_user = session.query(User).filter(User.username == details.username, User.id != details.user_id).first()
             if existing_user:
-                return {"error": "Username already exists"}
+                raise HTTPException(status_code=409,detail="Username already exists")
             user.username = details.username
         
         if details.password:
@@ -150,7 +150,7 @@ def edit_user(details: UpdateUserModel):
         if details.email:
             existing_email = session.query(User).filter(User.email == details.email, User.id != details.user_id).first()
             if existing_email:
-                return {"error": "Email already exists"}
+                raise HTTPException(status_code=409,detail="Email Already Exists")
             user.email = details.email
         if details.is_active is not None:
             if details.is_active == "Inactive":
@@ -163,7 +163,7 @@ def edit_user(details: UpdateUserModel):
         session.commit()
         session.refresh(user)
         
-        return 200
+        return Response(status_code=200)
     
 def get_local_body(district_id: int,type: str):
     with Database.get_session() as session:
@@ -173,7 +173,7 @@ def get_local_body(district_id: int,type: str):
         ).all()
         
         if not local_body:
-            return 204
+            raise HTTPException(status_code=204,detail="No local body found")
         
         return [
             {
@@ -193,7 +193,7 @@ def get_districts():
         districts = session.query(District).distinct().all()
         
         if not districts:
-            return 204
+            raise HTTPException(status_code=204,detail="No district found")
         
         return [
             {
@@ -210,7 +210,7 @@ def get_panchayath(block_id: str):
             LocalBody.type == LocalBodyType.Grama_Panchayat
         ).all()
         if not panchayath:
-            return 204
+            raise HTTPException(status_code=204,detail="No panchayaths found")
         return [
             {
                 "id": lb.id,
@@ -227,7 +227,7 @@ def get_user(local_body_id: str):
     with Database.get_session() as session:
         user = session.query(User).filter(User.local_body_id == local_body_id).first()
         if not user:
-            return {"error": "User not found"}
+            raise HTTPException(status_code=204,detail="No users found")
         
         return {
             "id": user.id,
@@ -249,7 +249,7 @@ def get_RO(local_body_id: str):
         ).all()
 
         if not panchayath:
-            return 204
+            raise HTTPException(status_code=204,detail="No RO found")
 
         return [
             {
@@ -389,7 +389,7 @@ def mass_deactivate(role_name: str, user_id:int):
             ).all()
             
             if not active_users:
-                return Response(status_code=204)
+                raise HTTPException(status_code=204,detail="No active users found")
             
             if active_users[0].is_active==True:
                 status = False
