@@ -25,6 +25,7 @@ class LocalBodyType(str, enum.Enum):
     Corporation = "Corporation"
     Municipality_RO = "Municipality_RO"
     Corporation_RO = "Corporation_RO"
+    District = "District"
 
 
 class User(Base):
