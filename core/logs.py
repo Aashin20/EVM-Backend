@@ -103,3 +103,24 @@ def get_allotment_logs_data(page: int, page_size: int, start_date: Optional[date
         return result
 
 
+def get_allotment_item_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
+    with Database.get_session() as db:
+        query = db.query(AllotmentItemLogs).join(AllotmentLogs)
+        query = apply_date_filter(query, AllotmentLogs, start_date, end_date)
+        result = get_paginated_response(query, page, page_size)
+        
+        formatted_items = []
+        for item in result["items"]:
+            component = db.query(EVMComponentLogs).filter(EVMComponentLogs.id == item.evm_component_id).first()
+            formatted_items.append({
+                "id": item.id,
+                "allotment_id": item.allotment_id,
+                "component_serial": component.serial_number if component else None,
+                "component_type": component.component_type.value if component and component.component_type else None,
+                "remarks": item.remarks
+            })
+        
+        result["items"] = formatted_items
+        return result
+
+
