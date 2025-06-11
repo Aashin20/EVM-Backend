@@ -76,3 +76,23 @@ class EVMComponentLogs(Base):
     current_user = relationship("User")
     current_warehouse = relationship("Warehouse")
 
+
+class PairingRecordLogs(Base):
+    __tablename__ = 'pairing_logs'
+
+    id = Column(Integer, primary_key=True)
+    evm_id = Column(String(50), nullable=True, default=None)  # Removed unique=True
+    polling_station_id = Column(Integer, ForeignKey('polling_stations.id'), nullable=True)
+
+    created_by_id = Column(Integer, ForeignKey('users.id'))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+
+    completed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Remove back_populates since PollingStation.pairing_records references PairingRecord, not PairingRecordLogs
+    polling_station = relationship("PollingStation")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    completed_by = relationship("User", foreign_keys=[completed_by_id])
+    components = relationship("EVMComponentLogs", back_populates="pairing")
+
