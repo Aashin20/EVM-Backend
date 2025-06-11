@@ -124,3 +124,27 @@ def get_allotment_item_logs_data(page: int, page_size: int, start_date: Optional
         return result
 
 
+def get_component_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
+    with Database.get_session() as db:
+        query = db.query(EVMComponentLogs)
+        query = apply_date_filter(query, EVMComponentLogs, start_date, end_date)
+        result = get_paginated_response(query, page, page_size)
+        
+        formatted_items = []
+        for log in result["items"]:
+            formatted_items.append({
+                "id": log.id,
+                "serial_number": log.serial_number,
+                "component_type": log.component_type.value if log.component_type else None,
+                "status": log.status,
+                "is_verified": log.is_verified,
+                "dom": log.dom,
+                "box_no": log.box_no,
+                "current_user": get_user_name(db, log.current_user_id),
+                "current_warehouse": get_warehouse_name(db, log.current_warehouse_id),
+                "created_on": log.created_on
+            })
+        
+        result["items"] = formatted_items
+        return result
+
