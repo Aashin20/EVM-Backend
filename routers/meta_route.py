@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from core.user import get_local_body,get_districts,get_panchayath,get_user,get_RO,get_evm_from_ps
+from core.user import get_local_body,get_districts,get_panchayath,get_user,get_RO,get_evm_from_ps,get_warehouse
 from utils.authtoken import get_current_user
 from typing import List
 
@@ -28,3 +28,7 @@ async def RO(local_body_id:str,current_user: dict = Depends(get_current_user)):
 @router.get("/ps/{local_body_id}")
 async def evm_from_ps(local_body_id:str,current_user: dict = Depends(get_current_user)):
     return get_evm_from_ps(local_body_id)
+
+@router.get("/warehouses/{district_id}")
+async def warehouse(district_id:int):
+    return get_warehouse(district_id)
