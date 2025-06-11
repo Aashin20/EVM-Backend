@@ -1,6 +1,6 @@
 from utils.authtoken import create_token, verify_token
 from .db import Database
-from models.users import User, LocalBody, District, LocalBodyType
+from models.users import User, LocalBody, District, LocalBodyType,Warehouse
 from models.evm import PollingStation,PairingRecord,EVMComponent,EVMComponentType
 import bcrypt
 from pydantic import BaseModel, constr
@@ -409,3 +409,12 @@ def mass_deactivate(role_name: str, user_id:int):
         except Exception as e:
             db.rollback()
             return Response(status_code=400)
+
+def get_warehouse(district_id: int):
+    with Database.get_session() as db:
+        warehouses = db.query(Warehouse).filter(district_id==district_id).all()
+
+        return [{
+            "id":ware.id,
+            "name": ware.name,
+        }for ware in warehouses]
