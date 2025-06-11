@@ -48,8 +48,7 @@ def create_allotment(evm: AllotmentModel, from_user_id: int):
             EVMComponent.id.in_(evm.evm_component_ids)
         ).all()
 
-        if len(components) != len(evm.evm_component_ids):
-            raise HTTPException(status_code=404, detail="One or more EVM components not found.")
+
 
         for comp in components:
             if comp.status in ["Polled", "Counted","FLC_Failed", "Faulty"]:
@@ -137,7 +136,7 @@ def approve_allotment(allotment_id: int, approver_id: int):
     with Database.get_session() as db:
         allotment = db.query(Allotment).filter(Allotment.id == allotment_id).first()
         if not allotment:
-            raise HTTPException(status_code=404, detail="Allotment not found.")
+            raise HTTPException(status_code=403, detail="Allotment not found.")
         if allotment.status == "approved":
             raise HTTPException(status_code=400, detail="Allotment already approved.")
         if allotment.status == "rejected":
@@ -145,8 +144,7 @@ def approve_allotment(allotment_id: int, approver_id: int):
 
         # Fetch approver user to get warehouse_id
         approver = db.query(User).filter(User.id == approver_id).first()
-        if not approver:
-            raise HTTPException(status_code=404, detail="Approver not found.")
+
 
         allotment.status = "approved"
         allotment.approved_by_id = approver_id
@@ -238,12 +236,7 @@ def approve_allotment(allotment_id: int, approver_id: int):
 
         db.commit()
 
-        return {
-            "message": "Allotment approved successfully.",
-            "allotment_id": allotment.id,
-            "approved_at": allotment.approved_at.isoformat(),
-            "updated_components": [item.evm_component_id for item in allotment.items]
-        }
+        return Response(status_code=200)
 
 def approval_queue(user_id: int):
     with Database.get_session() as session:
@@ -312,8 +305,7 @@ def reject_allotment(allotment_id: int, reject_reason: str, approver_id: int):
             raise HTTPException(status_code=400, detail="Allotment already rejected.")
 
         approver = db.query(User).filter(User.id == approver_id).first()
-        if not approver:
-            raise HTTPException(status_code=404, detail="Approver not found.")
+
 
         # Just mark as rejected — don't update component ownership
         allotment.status = "rejected"
@@ -553,11 +545,7 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                 
             db.commit()
             
-            return {
-                "message": f"Successfully commissioned {len(commissioning_list)} EVMs",
-                "count": len(commissioning_list)
-            }
-            
+            return Response(status_code=200)
         except Exception as e:
             db.rollback()
             print(f"Commission error: {str(e)}")
