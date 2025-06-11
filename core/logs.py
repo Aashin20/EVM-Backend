@@ -224,3 +224,44 @@ def get_flc_bu_logs_data(page: int, page_size: int, start_date: Optional[date], 
         return result
 
 
+def get_all_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
+    with Database.get_session() as db:
+        all_logs = []
+        
+        # Get all log types with their respective timestamp fields
+        log_configs = [
+            ("allotment", AllotmentLogs, "created_at"),
+            ("component", EVMComponentLogs, "created_on"),
+            ("pairing", PairingRecordLogs, "created_at"),
+            ("flc_record", FLCRecordLogs, "flc_date"),
+            ("flc_bu", FLCBallotUnitLogs, "flc_date")
+        ]
+        
+        for log_type, model, timestamp_field in log_configs:
+            query = db.query(model)
+            query = apply_date_filter(query, model, start_date, end_date)
+            
+            for log in query.all():
+                all_logs.append({
+                    "type": log_type,
+                    "id": log.id,
+                    "created_at": getattr(log, timestamp_field, None),
+                    "data": log
+                })
+        
+        # Sort by timestamp
+        all_logs.sort(key=lambda x: x['created_at'] or datetime.min, reverse=True)
+        
+        # Apply pagination
+        total = len(all_logs)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_logs = all_logs[start:end]
+        
+        return {
+            "items": [{"type": log["type"], "id": log["id"], "created_at": log["created_at"]} for log in paginated_logs],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": ceil(total / page_size)
+        }
