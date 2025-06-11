@@ -147,7 +147,7 @@ def view_components(component_type:str,user_id: int):
             )
         ).all()
         if not components:
-            return Response(status_code=204)
+            raise HTTPException(status_code=204)
         return [
             {
                 "id": component.id,
@@ -170,7 +170,7 @@ def view_paired_cu(user_id: int):
             )
         ).all()
         if not components:
-            return Response(status_code=204)
+            raise HTTPException(status_code=204)
         return [
             {
                 "id": component.id,
@@ -202,7 +202,7 @@ def view_paired_bu(user_id:int):
             )
         ).all()
         if not components:
-            return Response(status_code=204)
+            raise HTTPException(status_code=204)
         return [
             {
                 "id": component.id,
