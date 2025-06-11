@@ -201,3 +201,26 @@ def get_flc_record_logs_data(page: int, page_size: int, start_date: Optional[dat
         return result
 
 
+def get_flc_bu_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
+    with Database.get_session() as db:
+        query = db.query(FLCBallotUnitLogs)
+        query = apply_date_filter(query, FLCBallotUnitLogs, start_date, end_date)
+        result = get_paginated_response(query, page, page_size)
+        
+        formatted_items = []
+        for log in result["items"]:
+            component = db.query(EVMComponentLogs).filter(EVMComponentLogs.id == log.bu_id).first()
+            formatted_items.append({
+                "id": log.id,
+                "bu_serial": component.serial_number if component else None,
+                "box_no": log.box_no,
+                "passed": log.passed,
+                "remarks": log.remarks,
+                "flc_by": get_user_name(db, log.flc_by_id),
+                "flc_date": log.flc_date
+            })
+        
+        result["items"] = formatted_items
+        return result
+
+
