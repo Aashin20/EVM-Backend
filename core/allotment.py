@@ -76,6 +76,7 @@ def create_allotment(evm: AllotmentModel, from_user_id: int):
 
         # Create allotment items
         for comp in components:
+            comp.status="FLC_Passed/Temp"
             db.add(AllotmentItem(allotment_id=allotment.id, evm_component_id=comp.id))
 
         db.commit()
@@ -162,6 +163,7 @@ def approve_allotment(allotment_id: int, approver_id: int):
             component.current_user_id = allotment.to_user_id
             component.current_warehouse_id = approver.warehouse_id
             updated_component_ids.append(component.id)
+            component.status="FLC_Passed"
 
             # If the component is part of a pairing, update all in the pair
             if component.pairing_id:
@@ -344,6 +346,7 @@ def reject_allotment(allotment_id: int, reject_reason: str, approver_id: int):
         for item in allotment.items:
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             if component:
+                component.status="FLC_Passed"
                 comp_log = EVMComponentLogs(
                     serial_number=component.serial_number,
                     component_type=component.component_type,
