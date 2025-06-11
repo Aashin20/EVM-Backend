@@ -43,3 +43,15 @@ class AllotmentLogs(Base):
     items = relationship("AllotmentItemLogs", back_populates="allotment", cascade="all, delete-orphan")
 
 
+class AllotmentItemLogs(Base):
+    __tablename__ = 'allotment_items_logs'
+
+    id = Column(Integer, primary_key=True)
+    allotment_id = Column(Integer, ForeignKey('allotment_logs.id'))
+    evm_component_id = Column(Integer, ForeignKey('evm_components_logs.id'))
+
+    remarks = Column(String)
+
+    allotment = relationship("AllotmentLogs", back_populates="items")
+    evm_component = relationship("EVMComponentLogs")
+
