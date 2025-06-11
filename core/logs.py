@@ -170,3 +170,34 @@ def get_pairing_logs_data(page: int, page_size: int, start_date: Optional[date],
         result["items"] = formatted_items
         return result
 
+
+def get_flc_record_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
+    with Database.get_session() as db:
+        query = db.query(FLCRecordLogs)
+        query = apply_date_filter(query, FLCRecordLogs, start_date, end_date)
+        result = get_paginated_response(query, page, page_size)
+        
+        formatted_items = []
+        for log in result["items"]:
+            cu = db.query(EVMComponentLogs).filter(EVMComponentLogs.id == log.cu_id).first()
+            dmm = db.query(EVMComponentLogs).filter(EVMComponentLogs.id == log.dmm_id).first()
+            dmm_seal = db.query(EVMComponentLogs).filter(EVMComponentLogs.id == log.dmm_seal_id).first()
+            pink_seal = db.query(EVMComponentLogs).filter(EVMComponentLogs.id == log.pink_paper_seal_id).first()
+            
+            formatted_items.append({
+                "id": log.id,
+                "cu_serial": cu.serial_number if cu else None,
+                "dmm_serial": dmm.serial_number if dmm else None,
+                "dmm_seal_serial": dmm_seal.serial_number if dmm_seal else None,
+                "pink_paper_seal_serial": pink_seal.serial_number if pink_seal else None,
+                "box_no": log.box_no,
+                "passed": log.passed,
+                "remarks": log.remarks,
+                "flc_by": get_user_name(db, log.flc_by_id),
+                "flc_date": log.flc_date
+            })
+        
+        result["items"] = formatted_items
+        return result
+
+
