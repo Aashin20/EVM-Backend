@@ -148,3 +148,25 @@ def get_component_logs_data(page: int, page_size: int, start_date: Optional[date
         result["items"] = formatted_items
         return result
 
+
+def get_pairing_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
+    with Database.get_session() as db:
+        query = db.query(PairingRecordLogs)
+        query = apply_date_filter(query, PairingRecordLogs, start_date, end_date)
+        result = get_paginated_response(query, page, page_size)
+        
+        formatted_items = []
+        for log in result["items"]:
+            formatted_items.append({
+                "id": log.id,
+                "evm_id": log.evm_id,
+                "polling_station": get_polling_station_name(db, log.polling_station_id),
+                "created_by": get_user_name(db, log.created_by_id),
+                "created_at": log.created_at,
+                "completed_by": get_user_name(db, log.completed_by_id),
+                "completed_at": log.completed_at
+            })
+        
+        result["items"] = formatted_items
+        return result
+
