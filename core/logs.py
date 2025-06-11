@@ -74,3 +74,32 @@ def get_polling_station_name(db, polling_station_id: int):
     return ps.name if ps else None
 
 
+def get_allotment_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
+    with Database.get_session() as db:
+        query = db.query(AllotmentLogs)
+        query = apply_date_filter(query, AllotmentLogs, start_date, end_date)
+        result = get_paginated_response(query, page, page_size)
+        
+        formatted_items = []
+        for log in result["items"]:
+            formatted_items.append({
+                "id": log.id,
+                "allotment_type": log.allotment_type.value if log.allotment_type else None,
+                "from_user": get_user_name(db, log.from_user_id),
+                "to_user": get_user_name(db, log.to_user_id),
+                "from_district": get_district_name(db, log.from_district_id),
+                "to_district": get_district_name(db, log.to_district_id),
+                "from_local_body": get_local_body_name(db, log.from_local_body_id),
+                "to_local_body": get_local_body_name(db, log.to_local_body_id),
+                "reject_reason": log.reject_reason,
+                "status": log.status,
+                "created_at": log.created_at,
+                "approved_at": log.approved_at,
+                "is_temporary": log.is_temporary,
+                "temporary_reason": log.temporary_reason
+            })
+        
+        result["items"] = formatted_items
+        return result
+
+
