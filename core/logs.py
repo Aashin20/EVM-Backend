@@ -53,3 +53,10 @@ def get_district_name(db, district_id: int):
     return district.name if district else None
 
 
+def get_local_body_name(db, local_body_id: str):
+    if not local_body_id:
+        return None
+    local_body = db.query(LocalBody).filter(LocalBody.id == local_body_id).first()
+    return local_body.name if local_body else None
+
+
