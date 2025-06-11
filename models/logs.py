@@ -96,3 +96,26 @@ class PairingRecordLogs(Base):
     completed_by = relationship("User", foreign_keys=[completed_by_id])
     components = relationship("EVMComponentLogs", back_populates="pairing")
 
+class FLCRecordLogs(Base):
+    __tablename__ = 'flc_records_logs'
+
+    id = Column(Integer, primary_key=True)
+    cu_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=False)
+    dmm_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=False)
+    dmm_seal_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=False)
+    pink_paper_seal_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=False)
+
+    box_no = Column(String)
+    passed = Column(Boolean, default=False)
+    remarks = Column(String, nullable=True)
+
+    flc_by_id = Column(Integer, ForeignKey('users.id'))
+    flc_date = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+
+    cu = relationship("EVMComponentLogs", foreign_keys=[cu_id])
+    dmm = relationship("EVMComponentLogs", foreign_keys=[dmm_id])
+    flc_by = relationship("User")
+    dmm_seal = relationship("EVMComponentLogs", foreign_keys=[dmm_seal_id])
+    pink_paper_seal = relationship("EVMComponentLogs", foreign_keys=[pink_paper_seal_id])
+
+
