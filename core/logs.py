@@ -46,3 +46,10 @@ def get_user_name(db, user_id: int):
     return user.username if user else None
 
 
+def get_district_name(db, district_id: int):
+    if not district_id:
+        return None
+    district = db.query(District).filter(District.id == district_id).first()
+    return district.name if district else None
+
+
