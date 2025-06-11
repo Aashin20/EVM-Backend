@@ -39,3 +39,10 @@ def apply_date_filter(query, model, start_date: Optional[date], end_date: Option
     return query
 
 
+def get_user_name(db, user_id: int):
+    if not user_id:
+        return None
+    user = db.query(User).filter(User.id == user_id).first()
+    return user.username if user else None
+
+
