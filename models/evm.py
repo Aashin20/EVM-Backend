@@ -96,7 +96,8 @@ class Allotment(Base):
     approved_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
 
     is_return = Column(Boolean, default=False)
-    return_reason = Column(Enum(ReturnReason), nullable=True)
+    reject_reason = Column(String, nullable=True)
+
     original_allotment_id = Column(Integer, ForeignKey('allotments.id'), nullable=True)
 
     status = Column(String, default="pending")  # pending, approved, rejected
