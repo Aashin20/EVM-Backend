@@ -29,9 +29,6 @@ def new_components(components: List[ComponentModel], phy_order_no: str, user_id:
         
         # Get current user and validate
         current_user = session.query(User).filter(User.id == user_id).first()
-        if not current_user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
         
         district_name = current_user.district.name
             
@@ -106,8 +103,7 @@ def new_components(components: List[ComponentModel], phy_order_no: str, user_id:
         
         # Generate PDF - validate component type
         component_type = components[0].component_type if components else None
-        if not component_type:
-            raise HTTPException(status_code=400, detail="Component type is required")
+        
             
         if component_type in ["CU", "BU"]:
             pdf_filename = f"Annexure_1_{component_type}.pdf"
@@ -151,7 +147,7 @@ def view_components(component_type:str,user_id: int):
             )
         ).all()
         if not components:
-            return 204
+            return Response(status_code=204)
         return [
             {
                 "id": component.id,
@@ -174,7 +170,7 @@ def view_paired_cu(user_id: int):
             )
         ).all()
         if not components:
-            return 204
+            return Response(status_code=204)
         return [
             {
                 "id": component.id,
@@ -206,7 +202,7 @@ def view_paired_bu(user_id:int):
             )
         ).all()
         if not components:
-            return 204
+            return Response(status_code=204)
         return [
             {
                 "id": component.id,
