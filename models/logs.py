@@ -119,3 +119,16 @@ class FLCRecordLogs(Base):
     pink_paper_seal = relationship("EVMComponentLogs", foreign_keys=[pink_paper_seal_id])
 
 
+class FLCBallotUnitLogs(Base):
+    __tablename__ = 'flc_bu_logs'
+
+    id = Column(Integer, primary_key=True)
+    bu_id = Column(Integer, ForeignKey('evm_components_logs.id'))
+    box_no = Column(String)
+    passed = Column(Boolean, default=False)
+    remarks = Column(String)
+    flc_by_id = Column(Integer, ForeignKey('users.id'))
+    flc_date = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+
+    flc_by = relationship("User")
+    bu = relationship("EVMComponentLogs")
