@@ -55,3 +55,24 @@ class AllotmentItemLogs(Base):
     allotment = relationship("AllotmentLogs", back_populates="items")
     evm_component = relationship("EVMComponentLogs")
 
+
+class EVMComponentLogs(Base):
+    __tablename__ = 'evm_components_logs'
+
+    id = Column(Integer, primary_key=True)
+    serial_number = Column(String, nullable=False)  # Removed unique=True
+    component_type = Column(Enum(EVMComponentType), nullable=False)
+
+    status = Column(String, default="FLC_Pending")  
+    is_verified = Column(Boolean, default=False)
+    dom = Column(Date, nullable=True)
+    box_no = Column(Integer, nullable=True)
+    current_user_id = Column(Integer, ForeignKey('users.id'))
+    created_on = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    current_warehouse_id = Column(String, ForeignKey('warehouses.id'), nullable=True)
+    pairing_id = Column(Integer, ForeignKey('pairing_logs.id', ondelete="CASCADE"), nullable=True)
+    pairing = relationship("PairingRecordLogs", back_populates="components")
+
+    current_user = relationship("User")
+    current_warehouse = relationship("Warehouse")
+
