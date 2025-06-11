@@ -1,4 +1,5 @@
 from models.evm import AllotmentItem, FLCRecord, FLCBallotUnit,Allotment,EVMComponent
+from models.logs import AllotmentLogs,EVMComponentLogs,AllotmentItemLogs, PairingRecordLogs
 from models.users import User
 from core.db import Database
 from pydantic import BaseModel
@@ -22,7 +23,7 @@ class AllotmentModel(BaseModel):
     to_local_body_id: Optional[int] = None
     to_district_id: Optional[int] = None
     original_allotment_id: Optional[int] = None
-    return_reason: Optional[str] = None
+    reject_reason: Optional[str] = None
 
 
 class AllotmentResponse(BaseModel):
@@ -41,7 +42,7 @@ class EVMCommissioningModel(BaseModel):
 
 
 
-def create_allotment(evm: AllotmentModel,from_user_id: int):  
+def create_allotment(evm: AllotmentModel, from_user_id: int):  
     with Database.get_session() as db:
         components = db.query(EVMComponent).filter(
             EVMComponent.id.in_(evm.evm_component_ids)
@@ -56,6 +57,7 @@ def create_allotment(evm: AllotmentModel,from_user_id: int):
             if comp.current_user_id != from_user_id:
                 raise HTTPException(status_code=403, detail=f"Component {comp.serial_number} is not owned by the sender.")
 
+        # Create the main allotment
         allotment = Allotment(
             allotment_type=evm.allotment_type,
             from_user_id=from_user_id,
@@ -65,27 +67,70 @@ def create_allotment(evm: AllotmentModel,from_user_id: int):
             from_district_id=evm.from_district_id,
             to_district_id=evm.to_district_id,
             original_allotment_id=evm.original_allotment_id,
-            return_reason=evm.return_reason,
             initiated_by_id=from_user_id,
-            is_return=(evm.allotment_type == "RETURN"),
             status="pending"
         )
         db.add(allotment)
         db.commit()
         db.refresh(allotment)
 
-
+        # Create allotment items
         for comp in components:
             db.add(AllotmentItem(allotment_id=allotment.id, evm_component_id=comp.id))
 
         db.commit()
+
+        # CREATE LOGS - Add this section
+        # 1. Create AllotmentLogs entry
+        allotment_log = AllotmentLogs(
+            allotment_type=allotment.allotment_type,
+            from_user_id=allotment.from_user_id,
+            to_user_id=allotment.to_user_id,
+            from_local_body_id=allotment.from_local_body_id,
+            to_local_body_id=allotment.to_local_body_id,
+            from_district_id=allotment.from_district_id,
+            to_district_id=allotment.to_district_id,
+            status=allotment.status,
+            created_at=allotment.created_at  # or let it default to current time
+        )
+        db.add(allotment_log)
+        db.commit()
+        db.refresh(allotment_log)
+
+        # 2. Create EVMComponentLogs entries for each component
+        component_log_ids = []
+        for comp in components:
+            comp_log = EVMComponentLogs(
+                serial_number=comp.serial_number,
+                component_type=comp.component_type,
+                status=comp.status,
+                is_verified=comp.is_verified,
+                dom=comp.dom,
+                box_no=comp.box_no,
+                current_user_id=comp.current_user_id,
+                current_warehouse_id=comp.current_warehouse_id,
+                pairing_id=comp.pairing_id
+            )
+            db.add(comp_log)
+            db.commit()
+            db.refresh(comp_log)
+            component_log_ids.append(comp_log.id)
+
+        # 3. Create AllotmentItemLogs entries
+        for i, comp in enumerate(components):
+            db.add(AllotmentItemLogs(
+                allotment_id=allotment_log.id,
+                evm_component_id=component_log_ids[i]
+            ))
+
+        db.commit()
+
         return {
             "id": allotment.id,
             "allotment_type": allotment.allotment_type,
             "status": allotment.status,
             "evm_component_ids": evm.evm_component_ids
         }
-
 
 def approve_allotment(allotment_id: int, approver_id: int):
     with Database.get_session() as db:
@@ -106,6 +151,8 @@ def approve_allotment(allotment_id: int, approver_id: int):
         allotment.approved_by_id = approver_id
         allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
 
+        updated_component_ids = []
+        
         for item in allotment.items:
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             if not component:
@@ -114,6 +161,7 @@ def approve_allotment(allotment_id: int, approver_id: int):
             # Always update the directly allotted component
             component.current_user_id = allotment.to_user_id
             component.current_warehouse_id = approver.warehouse_id
+            updated_component_ids.append(component.id)
 
             # If the component is part of a pairing, update all in the pair
             if component.pairing_id:
@@ -123,8 +171,70 @@ def approve_allotment(allotment_id: int, approver_id: int):
                 for paired in paired_components:
                     paired.current_user_id = allotment.to_user_id
                     paired.current_warehouse_id = approver.warehouse_id
+                    if paired.id not in updated_component_ids:
+                        updated_component_ids.append(paired.id)
+        
         db.commit()
         db.refresh(allotment)
+
+        # CREATE LOGS - Add corresponding entries to logs tables
+        # 1. Create AllotmentLogs entry (approved state)
+        allotment_log = AllotmentLogs(
+            allotment_type=allotment.allotment_type,
+            from_user_id=allotment.from_user_id,
+            to_user_id=allotment.to_user_id,
+            from_local_body_id=allotment.from_local_body_id,
+            to_local_body_id=allotment.to_local_body_id,
+            from_district_id=allotment.from_district_id,
+            to_district_id=allotment.to_district_id,
+            status=allotment.status,
+            created_at=allotment.created_at,
+            approved_at=allotment.approved_at
+        )
+        db.add(allotment_log)
+        db.commit()
+        db.refresh(allotment_log)
+
+        # 2. Create EVMComponentLogs entries for all updated components
+        component_log_ids = []
+        for comp_id in updated_component_ids:
+            component = db.query(EVMComponent).filter(EVMComponent.id == comp_id).first()
+            
+            comp_log = EVMComponentLogs(
+                serial_number=component.serial_number,
+                component_type=component.component_type,
+                status=component.status,
+                is_verified=component.is_verified,
+                dom=component.dom,
+                box_no=component.box_no,
+                current_user_id=component.current_user_id,
+                current_warehouse_id=component.current_warehouse_id,
+                pairing_id=component.pairing_id
+            )
+            db.add(comp_log)
+            db.commit()
+            db.refresh(comp_log)
+            component_log_ids.append(comp_log.id)
+
+        # 3. Create AllotmentItemLogs entries (only for originally allotted items)
+        for i, item in enumerate(allotment.items):
+            # Find the corresponding component log
+            original_component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
+            matching_log_id = None
+            
+            for j, comp_id in enumerate(updated_component_ids):
+                if comp_id == item.evm_component_id:
+                    matching_log_id = component_log_ids[j]
+                    break
+            
+            if matching_log_id:
+                db.add(AllotmentItemLogs(
+                    allotment_id=allotment_log.id,
+                    evm_component_id=matching_log_id,
+                    remarks=item.remarks
+                ))
+
+        db.commit()
 
         return {
             "message": "Allotment approved successfully.",
@@ -132,7 +242,6 @@ def approve_allotment(allotment_id: int, approver_id: int):
             "approved_at": allotment.approved_at.isoformat(),
             "updated_components": [item.evm_component_id for item in allotment.items]
         }
-
 
 def approval_queue(user_id: int):
     with Database.get_session() as session:
@@ -172,12 +281,13 @@ def approval_queue(user_id: int):
                 "to_local_body_name": allotment.to_local_body.name if allotment.to_local_body else None,
                 "components": [
                     {
-                        "serial_number": item.evm_component.serial_number,
                         "component_type": item.evm_component.component_type,
+                        "serial_number": item.evm_component.serial_number,
                         "paired_components": [
                             {
-                                "serial_number": paired_comp.serial_number,
                                 "component_type": paired_comp.component_type,
+                                "serial_number": paired_comp.serial_number,
+                                
                             }
                             for paired_comp in (item.evm_component.pairing.components if item.evm_component.pairing else [])
                             if paired_comp.id != item.evm_component.id
@@ -189,7 +299,7 @@ def approval_queue(user_id: int):
             } for allotment in pending_allotments
         ]
     
-def reject_allotment(allotment_id: int, approver_id: int):
+def reject_allotment(allotment_id: int, reject_reason: str, approver_id: int):
     with Database.get_session() as db:
         allotment = db.query(Allotment).filter(Allotment.id == allotment_id).first()
         if not allotment:
@@ -207,11 +317,58 @@ def reject_allotment(allotment_id: int, approver_id: int):
         allotment.status = "rejected"
         allotment.approved_by_id = approver_id
         allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
-
+        allotment.reject_reason = reject_reason
         db.commit()
         db.refresh(allotment)
 
+        # CREATE LOGS - Add corresponding entries to logs tables
+        # 1. Create AllotmentLogs entry (rejected state)
+        allotment_log = AllotmentLogs(
+            allotment_type=allotment.allotment_type,
+            from_user_id=allotment.from_user_id,
+            to_user_id=allotment.to_user_id,
+            from_local_body_id=allotment.from_local_body_id,
+            to_local_body_id=allotment.to_local_body_id,
+            from_district_id=allotment.from_district_id,
+            to_district_id=allotment.to_district_id,
+            reject_reason=allotment.reject_reason,
+            status=allotment.status,
+            created_at=allotment.created_at,
+            approved_at=allotment.approved_at
+        )
+        db.add(allotment_log)
+        db.commit()
+        db.refresh(allotment_log)
+
+        # 2. Create EVMComponentLogs entries (components remain unchanged)
+        for item in allotment.items:
+            component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
+            if component:
+                comp_log = EVMComponentLogs(
+                    serial_number=component.serial_number,
+                    component_type=component.component_type,
+                    status=component.status,
+                    is_verified=component.is_verified,
+                    dom=component.dom,
+                    box_no=component.box_no,
+                    current_user_id=component.current_user_id,
+                    current_warehouse_id=component.current_warehouse_id,
+                    pairing_id=component.pairing_id
+                )
+                db.add(comp_log)
+                db.commit()
+                db.refresh(comp_log)
+
+                # 3. Create AllotmentItemLogs entry
+                db.add(AllotmentItemLogs(
+                    allotment_id=allotment_log.id,
+                    evm_component_id=comp_log.id,
+                    remarks=item.remarks
+                ))
+
+        db.commit()
         return Response(status_code=200)
+
 
 def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: int):
     with Database.get_session() as db:
@@ -343,6 +500,54 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                 for component in other_components:
                     component.status = "polling"
             
+            db.commit()
+            
+            # CREATE LOGS - Add corresponding entries to logs tables
+            for commissioning_data in commissioning_list:
+                ps_no = int(commissioning_data.ps_no)
+                
+                # Get updated pairing
+                cu = db.query(EVMComponent).filter(
+                    EVMComponent.serial_number == commissioning_data.cu_serial,
+                    EVMComponent.component_type == EVMComponentType.CU
+                ).first()
+                
+                pairing = db.query(PairingRecord).filter(
+                    PairingRecord.id == cu.pairing_id
+                ).first()
+                
+                # 1. Create PairingRecordLogs entry
+                pairing_log = PairingRecordLogs(
+                    evm_id=pairing.evm_id,
+                    polling_station_id=pairing.polling_station_id,
+                    created_by_id=pairing.created_by_id,
+                    created_at=pairing.created_at,
+                    completed_by_id=pairing.completed_by_id,
+                    completed_at=pairing.completed_at
+                )
+                db.add(pairing_log)
+                db.commit()
+                db.refresh(pairing_log)
+                
+                # 2. Create EVMComponentLogs entries for all components in this pairing
+                all_components = db.query(EVMComponent).filter(
+                    EVMComponent.pairing_id == cu.pairing_id
+                ).all()
+                
+                for component in all_components:
+                    comp_log = EVMComponentLogs(
+                        serial_number=component.serial_number,
+                        component_type=component.component_type,
+                        status=component.status,
+                        is_verified=component.is_verified,
+                        dom=component.dom,
+                        box_no=component.box_no,
+                        current_user_id=component.current_user_id,
+                        current_warehouse_id=component.current_warehouse_id,
+                        pairing_id=pairing_log.id
+                    )
+                    db.add(comp_log)
+                
             db.commit()
             
             return {
