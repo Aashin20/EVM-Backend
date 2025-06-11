@@ -1,5 +1,7 @@
 from fastapi import APIRouter   
-from core.user import register, RegisterModel, view_users,UpdateUserModel,edit_user,add_ps,approve_ps,reject_ps,view_ps,PollingStationModel,get_ps
+from core.user import (register, RegisterModel, view_users,UpdateUserModel,
+                       edit_user,add_ps,approve_ps,reject_ps,view_ps,
+                       PollingStationModel,get_ps,mass_deactivate)
 from utils.authtoken import get_current_user
 from fastapi import Depends
 from typing import List
@@ -50,4 +52,8 @@ async def view(local_body_id:str,current_user: dict = Depends(get_current_user))
 
 @router.get("/dashboard")
 async def dash(current_user: dict = Depends(get_current_user)):
-    return get_details(current_user)
+    return get_details(current_user['user_id'])
+
+@router.post("/deactivate/{role}")
+async def deactivate(role:str,current_user: dict = Depends(get_current_user)):
+    return mass_deactivate(role,current_user['user_id'])
