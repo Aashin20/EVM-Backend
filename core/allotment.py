@@ -196,6 +196,40 @@ def pending(evm: AllotmentModel, from_user_id: int):
         
         return {"status_code":200}
 
+def view_pending_allotments(user_id: int):
+    with Database.get_session() as db:
+        pending_allotments = db.query(AllotmentPending).filter(
+            AllotmentPending.from_user_id == user_id,
+            AllotmentPending.status == "pending"
+        ).all()
+        
+        result = []
+        for allotment in pending_allotments:
+            # Get component type of first component for this pending allotment
+            first_component = db.query(EVMComponent.component_type).join(
+                AllotmentItemPending, 
+                EVMComponent.id == AllotmentItemPending.evm_component_id
+            ).filter(
+                AllotmentItemPending.allotment_pending_id == allotment.id
+            ).first()
+            
+            component_type = first_component.component_type if first_component else None
+            
+            result.append({
+                "id": allotment.id,
+                "allotment_type": allotment.allotment_type,
+                "to_user_name": allotment.to_user.username if allotment.to_user else None,
+                "from_local_body_name": allotment.from_local_body.name if allotment.from_local_body else None,
+                "to_local_body_name": allotment.to_local_body.name if allotment.to_local_body else None,
+                "from_district_name": allotment.from_district.name if allotment.from_district else None,
+                "to_district_name": allotment.to_district.name if allotment.to_district else None,
+                "component_type": component_type,  # Single component type
+                "created_at": allotment.created_at,
+            })
+        
+        return result
+    
+
 
 
 def approve_allotment(allotment_id: int, approver_id: int):
