@@ -1,14 +1,15 @@
-from models.evm import AllotmentItem, FLCRecord, FLCBallotUnit,Allotment,EVMComponent
+from models.evm import (AllotmentItem, Allotment,EVMComponent,
+                        AllotmentType, PollingStation,AllotmentItemPending,AllotmentPending)
 from models.logs import AllotmentLogs,EVMComponentLogs,AllotmentItemLogs, PairingRecordLogs
-from models.users import User
+from models.users import User,LocalBody,District
 from core.db import Database
 from pydantic import BaseModel
 from typing import Optional,List
-from models.evm import AllotmentType, PollingStation
 from fastapi.exceptions import HTTPException
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import joinedload
+from sqlalchemy import and_
 from models.evm import PairingRecord, EVMComponentType
 from fastapi import Response
 import traceback
@@ -42,12 +43,31 @@ class EVMCommissioningModel(BaseModel):
 
 
 
-def create_allotment(evm: AllotmentModel, from_user_id: int):  
+def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_id: Optional[int]):  
     with Database.get_session() as db:
         components = db.query(EVMComponent).filter(
             EVMComponent.id.in_(evm.evm_component_ids)
         ).all()
 
+        # If there's a pending allotment, handle components that were removed
+        if pending_allotment_id:
+            # Get all components that were in the pending allotment
+            pending_components = db.query(EVMComponent).join(
+                AllotmentItemPending, 
+                EVMComponent.id == AllotmentItemPending.evm_component_id
+            ).filter(
+                AllotmentItemPending.allotment_pending_id == pending_allotment_id
+            ).all()
+            
+            # Find components that were removed (in pending but not in final)
+            pending_component_ids = {comp.id for comp in pending_components}
+            final_component_ids = set(evm.evm_component_ids)
+            removed_component_ids = pending_component_ids - final_component_ids
+            
+            # Reset status for removed components back to "FLC_Passed"
+            for comp in pending_components:
+                if comp.id in removed_component_ids:
+                    comp.status = "FLC_Passed"  # or whatever the appropriate status should be
 
 
         for comp in components:
@@ -78,10 +98,15 @@ def create_allotment(evm: AllotmentModel, from_user_id: int):
             comp.status="FLC_Passed/Temp"
             db.add(AllotmentItem(allotment_id=allotment.id, evm_component_id=comp.id))
 
+        # Delete the pending allotment record if provided
+        if pending_allotment_id:
+            db.query(AllotmentPending).filter(
+                AllotmentPending.id == pending_allotment_id
+            ).delete()
+
         db.commit()
 
-        # CREATE LOGS - Add this section
-        # 1. Create AllotmentLogs entry
+        # [Rest of your logging code remains the same...]
         allotment_log = AllotmentLogs(
             allotment_type=allotment.allotment_type,
             from_user_id=allotment.from_user_id,
@@ -91,13 +116,12 @@ def create_allotment(evm: AllotmentModel, from_user_id: int):
             from_district_id=allotment.from_district_id,
             to_district_id=allotment.to_district_id,
             status=allotment.status,
-            created_at=allotment.created_at  # or let it default to current time
+            created_at=allotment.created_at
         )
         db.add(allotment_log)
         db.commit()
         db.refresh(allotment_log)
 
-        # 2. Create EVMComponentLogs entries for each component
         component_log_ids = []
         for comp in components:
             comp_log = EVMComponentLogs(
@@ -116,7 +140,6 @@ def create_allotment(evm: AllotmentModel, from_user_id: int):
             db.refresh(comp_log)
             component_log_ids.append(comp_log.id)
 
-        # 3. Create AllotmentItemLogs entries
         for i, comp in enumerate(components):
             db.add(AllotmentItemLogs(
                 allotment_id=allotment_log.id,
@@ -131,6 +154,8 @@ def create_allotment(evm: AllotmentModel, from_user_id: int):
             "status": allotment.status,
             "evm_component_ids": evm.evm_component_ids
         }
+
+
 
 def approve_allotment(allotment_id: int, approver_id: int):
     with Database.get_session() as db:
