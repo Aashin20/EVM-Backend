@@ -19,7 +19,9 @@ async def pending_view(current_user: dict = Depends(get_current_user)):
 async def pending_create(data: AllotmentModel,current_user: dict = Depends(get_current_user)):
     return pending(data,current_user['user_id'])
 
-
+@router.get("/pending/components/{pending_id}")
+async def view_pending_comp(pending_id:int,current_user: dict = Depends(get_current_user)):
+    return view_pending_allotment_components(pending_id,current_user['user_id'])
 
 @router.get("/approve/{allotment_id}")
 async def approve(allotment_id: int,current_user: dict = Depends(get_current_user)):  
