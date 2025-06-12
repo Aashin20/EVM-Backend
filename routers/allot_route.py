@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException,Body
-from core.allotment import create_allotment, AllotmentModel, reject_allotment,approve_allotment, approval_queue, evm_commissioning,EVMCommissioningModel
+from fastapi import APIRouter, Depends, HTTPException,Body,Query
+from core.allotment import (create_allotment, AllotmentModel, reject_allotment,approve_allotment, 
+                            approval_queue, evm_commissioning,EVMCommissioningModel,
+                            view_pending_allotment_components,view_pending_allotments,pending)
 from utils.authtoken import get_current_user
-from typing import List
-
+from typing import List,Optional
 
 router = APIRouter()
 
 @router.post("/")
-async def allot_evm(data: AllotmentModel,current_user: dict = Depends(get_current_user)):
-    return create_allotment(data,current_user['user_id'])
+async def allot_evm(data: AllotmentModel,pending_id: Optional[int] = Query(None),current_user: dict = Depends(get_current_user)):
+    return create_allotment(data,current_user['user_id'],pending_id)
+
+
 
 @router.get("/approve/{allotment_id}")
 async def approve(allotment_id: int,current_user: dict = Depends(get_current_user)):  
