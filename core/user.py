@@ -410,9 +410,9 @@ def mass_deactivate(role_name: str, user_id:int):
             db.rollback()
             return Response(status_code=400)
 
-def get_warehouse(district_id: int):
+def get_warehouse(district: int):
     with Database.get_session() as db:
-        warehouses = db.query(Warehouse).filter(district_id==district_id).all()
+        warehouses = db.query(Warehouse).filter(Warehouse.district_id==district).all()
 
         return [{
             "id":ware.id,
