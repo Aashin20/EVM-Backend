@@ -119,8 +119,48 @@ class Allotment(Base):
     items = relationship("AllotmentItem", back_populates="allotment", cascade="all, delete-orphan")
     original_allotment = relationship("Allotment", remote_side=[id])
 
+class AllotmentPending(Base):
+    __tablename__ = 'allotment_pending' 
+    id = Column(Integer, primary_key=True)
+    allotment_type = Column(Enum(AllotmentType), nullable=False)
+
+    from_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    to_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    from_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
+    to_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
+    from_local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=True)
+    to_local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=True)
+
+    initiated_by_id = Column(Integer, ForeignKey('users.id'))
+    approved_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    is_return = Column(Boolean, default=False)
+    reject_reason = Column(String, nullable=True)
+
+
+
+    status = Column(String, default="pending")  # pending, approved, rejected
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    approved_at = Column(DateTime, nullable=True)
+
+    is_temporary = Column(Boolean, default=False)
+    temporary_reason= Column(String, nullable=True)
+
+    from_user = relationship("User", foreign_keys=[from_user_id])
+    to_user = relationship("User", foreign_keys=[to_user_id])
+    initiated_by = relationship("User", foreign_keys=[initiated_by_id])
+    approved_by = relationship("User", foreign_keys=[approved_by_id])
+    from_district = relationship("District", foreign_keys=[from_district_id])
+    to_district = relationship("District", foreign_keys=[to_district_id])
+    from_local_body = relationship("LocalBody", foreign_keys=[from_local_body_id])
+    to_local_body = relationship("LocalBody", foreign_keys=[to_local_body_id])
+
+    items = relationship("AllotmentItemPending", back_populates="allotment_pending", cascade="all, delete-orphan")
+
 
 class AllotmentItem(Base):
+    
     __tablename__ = 'allotment_items'
 
     id = Column(Integer, primary_key=True)
