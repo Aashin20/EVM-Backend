@@ -158,7 +158,16 @@ class AllotmentPending(Base):
 
     items = relationship("AllotmentItemPending", back_populates="allotment_pending", cascade="all, delete-orphan")
 
-
+class AllotmentItemPending(Base):
+    __tablename__ = "allotment_item_pending"
+    
+    id = Column(Integer, primary_key=True)
+    allotment_pending_id = Column(Integer, ForeignKey('allotment_pending.id'), nullable=False)
+    evm_component_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)  # Changed from String to Integer
+    
+    allotment_pending = relationship("AllotmentPending", back_populates="items")
+    evm_component = relationship("EVMComponent")
+    
 class AllotmentItem(Base):
     
     __tablename__ = 'allotment_items'
