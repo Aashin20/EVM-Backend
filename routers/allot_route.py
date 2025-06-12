@@ -11,6 +11,10 @@ router = APIRouter()
 async def allot_evm(data: AllotmentModel,pending_id: Optional[int] = Query(None),current_user: dict = Depends(get_current_user)):
     return create_allotment(data,current_user['user_id'],pending_id)
 
+@router.get("/pending/view")
+async def pending_view(current_user: dict = Depends(get_current_user)):
+    return view_pending_allotments(current_user['user_id'])
+
 
 
 @router.get("/approve/{allotment_id}")
