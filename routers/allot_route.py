@@ -15,6 +15,10 @@ async def allot_evm(data: AllotmentModel,pending_id: Optional[int] = Query(None)
 async def pending_view(current_user: dict = Depends(get_current_user)):
     return view_pending_allotments(current_user['user_id'])
 
+@router.post("/pending")
+async def pending_create(data: AllotmentModel,current_user: dict = Depends(get_current_user)):
+    return pending(data,current_user['user_id'])
+
 
 
 @router.get("/approve/{allotment_id}")
