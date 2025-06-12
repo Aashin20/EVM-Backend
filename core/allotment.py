@@ -155,6 +155,47 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
             "evm_component_ids": evm.evm_component_ids
         }
 
+def pending(evm: AllotmentModel, from_user_id: int):
+    with Database.get_session() as db:
+        # Same validations as create_allotment
+        components = db.query(EVMComponent).filter(
+            EVMComponent.id.in_(evm.evm_component_ids)
+        ).all()
+
+        for comp in components:
+            if comp.status in ["Polled", "Counted", "FLC_Failed", "Faulty"]:
+                raise HTTPException(status_code=400, detail=f"Component {comp.serial_number} is not available.")
+            if comp.current_user_id != from_user_id:
+                raise HTTPException(status_code=403, detail=f"Component {comp.serial_number} is not owned by the sender.")
+
+        # Create the pending allotment
+        allotment_pending = AllotmentPending(
+            allotment_type=evm.allotment_type,
+            from_user_id=from_user_id,
+            to_user_id=evm.to_user_id,
+            from_local_body_id=evm.from_local_body_id,
+            to_local_body_id=evm.to_local_body_id,
+            from_district_id=evm.from_district_id,
+            to_district_id=evm.to_district_id,
+            initiated_by_id=from_user_id,
+            status="pending"
+        )
+        db.add(allotment_pending)
+        db.commit()
+        db.refresh(allotment_pending)
+
+        # Create pending allotment items
+        for comp in components:
+            db.add(AllotmentItemPending(
+                allotment_pending_id=allotment_pending.id, 
+                evm_component_id=comp.id
+            ))
+            comp.status="FLC_Passed/Pending"
+
+        db.commit()
+        
+        return {"status_code":200}
+
 
 
 def approve_allotment(allotment_id: int, approver_id: int):
