@@ -37,6 +37,7 @@ app.include_router(flc_route.router, prefix="/flc", tags=["flc"])
 app.include_router(meta_route.router, prefix="/meta", tags=["meta"])
 app.include_router(return_route.router,prefix="/status", tags=["status"])
 app.include_router(logs_route.router,prefix="/logs", tags=["logs"])
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
