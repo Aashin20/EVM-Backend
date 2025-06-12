@@ -229,7 +229,44 @@ def view_pending_allotments(user_id: int):
         
         return result
     
-
+def view_pending_allotment_components(pending_allotment_id: int, user_id: int):
+    with Database.get_session() as db:
+        # Verify the pending allotment belongs to the user
+        pending_allotment = db.query(AllotmentPending).filter(
+            AllotmentPending.id == pending_allotment_id,
+            AllotmentPending.from_user_id == user_id
+        ).first()
+        
+        if not pending_allotment:
+            raise HTTPException(status_code=404, detail="Pending allotment not found")
+        
+        # Get all components for this pending allotment
+        components = db.query(EVMComponent).join(
+            AllotmentItemPending, 
+            EVMComponent.id == AllotmentItemPending.evm_component_id
+        ).filter(
+            AllotmentItemPending.allotment_pending_id == pending_allotment_id
+        ).all()
+        
+        return [
+            {
+                "id": component.id,
+                "serial_number": component.serial_number,
+                "box_no": component.box_no,
+                "dom": component.dom,
+                "status": component.status,
+                "warehouse": component.current_warehouse_id,
+                "paired_components": [
+                    {
+                        "id": paired_component.id,
+                        "component_type": paired_component.component_type,
+                        "serial_number": paired_component.serial_number,
+                    } 
+                    for paired_component in (component.pairing.components if component.pairing else [])
+                    if paired_component.id != component.id
+                ]
+            } for component in components
+        ]
 
 
 def approve_allotment(allotment_id: int, approver_id: int):
