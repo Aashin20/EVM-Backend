@@ -348,3 +348,25 @@ def view_paired_bu_deo(district_id:int):
             } for component in components
         ]
 
+def view_components_sec(component_type:str):
+
+    with Database.get_session() as session:
+        components = session.query(EVMComponent).filter(
+            and_(
+                EVMComponent.component_type == component_type,
+            )
+        ).all()
+        if not components:
+            raise HTTPException(status_code=204)
+        return [
+            {
+                "id": component.id,
+                "serial_number": component.serial_number,
+                "box_no": component.box_no,
+                "dom": component.dom,
+                "district_id": component.current_user.district_id,
+                "warehouse_id": component.current_warehouse_id,
+                "status": component.status
+            } for component in components
+        ]
+    
