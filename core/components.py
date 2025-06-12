@@ -160,6 +160,7 @@ def view_components(component_type:str,user_id: int):
             } for component in components
         ]
     
+
 def view_paired_cu(user_id: int):
     with Database.get_session() as session:
         components = session.query(EVMComponent).filter(
@@ -192,6 +193,7 @@ def view_paired_cu(user_id: int):
             } for component in components
         ]
     
+
 def view_paired_bu(user_id:int):
     with Database.get_session() as session:
         components = session.query(EVMComponent).filter(
@@ -233,3 +235,35 @@ def get_details(user_id:int):
             "FLC_Passed": flc_passed,
             "FLC_Failed": flc_failed
         }
+    
+def view_paired_cu_sec():
+    with Database.get_session() as session:
+        components = session.query(EVMComponent).filter(
+            and_(
+                EVMComponent.component_type == "CU",
+                EVMComponent.pairing_id.isnot(None),
+            )
+        ).all()
+        if not components:
+            raise HTTPException(status_code=204)
+        return [
+            {
+                "id": component.id,
+                "serial_number": component.serial_number,
+                "box_no": component.box_no,
+                "dom": component.dom,
+                "status": component.status,
+                "warehouse_id": component.current_warehouse_id,
+                "paired_components": [
+                    {
+                        "id": paired_component.id,
+                        "component_type": paired_component.component_type,
+                        "serial_number": paired_component.serial_number,
+                    } 
+                    for paired_component in component.pairing.components
+                    if paired_component.id != component.id
+
+                ]
+            } for component in components
+        ]
+
