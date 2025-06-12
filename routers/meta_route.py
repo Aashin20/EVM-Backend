@@ -30,5 +30,5 @@ async def evm_from_ps(local_body_id:str,current_user: dict = Depends(get_current
     return get_evm_from_ps(local_body_id)
 
 @router.get("/warehouses/{district_id}")
-async def warehouse(district_id:int):
+async def warehouse(district_id:int,current_user: dict = Depends(get_current_user)):
     return get_warehouse(district_id)
