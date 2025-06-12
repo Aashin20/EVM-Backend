@@ -370,3 +370,28 @@ def view_components_sec(component_type:str):
             } for component in components
         ]
     
+def view_components_deo(component_type:str,district_id:int):
+
+    with Database.get_session() as session:
+        components = session.query(EVMComponent).join(
+            User, EVMComponent.current_user_id == User.id
+        ).filter(
+            and_(
+                User.district_id == district_id,
+                EVMComponent.component_type == component_type,
+            )
+        ).all()
+        if not components:
+            raise HTTPException(status_code=204)
+        return [
+            {
+                "id": component.id,
+                "serial_number": component.serial_number,
+                "box_no": component.box_no,
+                "dom": component.dom,
+                "district_id": component.current_user.district_id,
+                "warehouse_id": component.current_warehouse_id,
+                "status": component.status
+            } for component in components
+        ]
+    
