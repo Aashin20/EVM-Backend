@@ -6,6 +6,8 @@ from models.logs import FLCBallotUnitLogs,FLCRecordLogs,EVMComponentLogs,Pairing
 from fastapi import HTTPException
 from typing import Optional, List
 from fastapi import Response
+from fastapi.responses import FileResponse
+from annexure.Annex_3 import FLC_Certificate_BU,FLC_Certificate_CU
 
 
 class FLCCUModel(BaseModel):
@@ -28,6 +30,7 @@ class FLCBUModel(BaseModel):
 
 def flc_cu(data_list: List[FLCCUModel], user_id: int):
     with Database.get_session() as session:
+        cu_components = []
         for data in data_list:
             cu = session.query(EVMComponent).filter_by(serial_number=data.cu_serial).first()
             dmm = session.query(EVMComponent).filter_by(serial_number=data.dmm_serial).first()
@@ -73,7 +76,7 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int):
                 flc_by_id=user_id
             )
             session.add(flc)
-            
+
             pairing = PairingRecord(created_by_id=user_id)
             session.add(pairing)
             session.flush()
@@ -92,18 +95,24 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int):
             else:
                 cu.status = "FLC_Failed"
                 dmm.status = "FLC_Failed"
-
+            
+            # Prepare data for PDF
+            cu_components.append({
+                "cu_number": cu.serial_number,
+                "dmm_number": dmm.serial_number,
+                "dmm_seal_no": dmm_seal.serial_number,
+                "cu_pink_seal": pink_paper_seal.serial_number,
+                "passed": data.passed
+            })
+            
         session.commit()
         
-        # CREATE LOGS - Add corresponding entries to logs tables
         for data in data_list:
-            # Get updated components
             cu = session.query(EVMComponent).filter_by(serial_number=data.cu_serial).first()
             dmm = session.query(EVMComponent).filter_by(serial_number=data.dmm_serial).first()
             dmm_seal = session.query(EVMComponent).filter_by(serial_number=data.dmm_seal_serial).first()
             pink_paper_seal = session.query(EVMComponent).filter_by(serial_number=data.pink_paper_seal_serial).first()
             
-            # Create PairingRecordLogs
             pairing_log = PairingRecordLogs(
                 evm_id=cu.pairing.evm_id if cu.pairing else None,
                 polling_station_id=cu.pairing.polling_station_id if cu.pairing else None,
@@ -115,7 +124,6 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int):
             session.commit()
             session.refresh(pairing_log)
             
-            # Create EVMComponentLogs for all components
             components_to_log = [cu, dmm, dmm_seal, pink_paper_seal]
             component_log_ids = []
             
@@ -136,12 +144,11 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int):
                 session.refresh(comp_log)
                 component_log_ids.append(comp_log.id)
             
-            # Create FLCRecordLogs
             flc_log = FLCRecordLogs(
-                cu_id=component_log_ids[0],  # CU log id
-                dmm_id=component_log_ids[1],  # DMM log id
-                dmm_seal_id=component_log_ids[2],  # DMM_SEAL log id
-                pink_paper_seal_id=component_log_ids[3],  # PINK_PAPER_SEAL log id
+                cu_id=component_log_ids[0], 
+                dmm_id=component_log_ids[1], 
+                dmm_seal_id=component_log_ids[2], 
+                pink_paper_seal_id=component_log_ids[3], 
                 box_no=data.box_no,
                 passed=data.passed,
                 remarks=data.remarks,
@@ -150,19 +157,21 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int):
             session.add(flc_log)
         
         session.commit()
+        
+        # Generate PDF report
+        pdf_filename = FLC_Certificate_CU(cu_components)
     
-    return Response(status_code=200)
+    return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
 
 
-
-def flc_bu(datas: list[FLCBUModel],user_id: int):
+def flc_bu(datas: List[FLCBUModel], user_id: int):
     with Database.get_session() as session:
+        bu_components = []
         for data in datas:
             bu = session.query(EVMComponent).filter_by(serial_number=data.bu_serial).first()
             if not bu:
                 raise HTTPException(status_code=404, detail=f"Component with serial number {data.bu_serial} not found")
             
-            # Create FLC record
             flc = FLCBallotUnit(
                 bu_id=bu.id,
                 box_no=data.box_no,
@@ -172,20 +181,20 @@ def flc_bu(datas: list[FLCBUModel],user_id: int):
             )
             session.add(flc)
             
-            # Update component
             bu.box_no = data.box_no
-            if data.passed:
-                bu.status = "FLC_Passed"
-            else:
-                bu.status = "FLC_Failed"
+            bu.status = "FLC_Passed" if data.passed else "FLC_Failed"
+            
+            # Create a dictionary with the data needed for PDF generation
+            bu_components.append({
+                "serial_number": bu.serial_number,
+                "passed": data.passed  # Use data.passed instead of comp.passed
+            })
         
         session.commit()
         
-        # CREATE LOGS - Add corresponding entries to logs tables
         for data in datas:
             bu = session.query(EVMComponent).filter_by(serial_number=data.bu_serial).first()
             
-            # Create EVMComponentLogs entry (current state after update)
             component_log = EVMComponentLogs(
                 serial_number=bu.serial_number,
                 component_type=bu.component_type,
@@ -201,9 +210,8 @@ def flc_bu(datas: list[FLCBUModel],user_id: int):
             session.commit()
             session.refresh(component_log)
             
-            # Create FLCBallotUnitLogs entry
             flc_log = FLCBallotUnitLogs(
-                bu_id=component_log.id,  # Reference to the component log
+                bu_id=component_log.id,
                 box_no=data.box_no,
                 passed=data.passed,
                 remarks=data.remarks,
@@ -212,5 +220,8 @@ def flc_bu(datas: list[FLCBUModel],user_id: int):
             session.add(flc_log)
         
         session.commit()
+        
+        # Generate PDF report
+        pdf_filename = FLC_Certificate_BU(bu_components)
     
-    return Response(status_code=200)
+    return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
