@@ -13,6 +13,8 @@ from sqlalchemy import and_
 from models.evm import PairingRecord, EVMComponentType
 from fastapi import Response
 import traceback
+from fastapi.responses import FileResponse
+from annexure.Annex_5 import CUDetail,Deo_BO_CU
 
 class AllotmentModel(BaseModel):
     allotment_type: AllotmentType
@@ -69,7 +71,6 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                 if comp.id in removed_component_ids:
                     comp.status = "FLC_Passed"  # or whatever the appropriate status should be
 
-
         for comp in components:
             if comp.status in ["Polled", "Counted","FLC_Failed", "Faulty"]:
                 raise HTTPException(status_code=400, detail=f"Component {comp.serial_number} is not available.")
@@ -105,6 +106,46 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
             ).delete()
 
         db.commit()
+
+        # Generate PDF if conditions are met
+        pdf_filename = None
+        if evm.allotment_type == AllotmentType.DEO_TO_BO or evm.allotment_type == AllotmentType.DEO_TO_ERO :
+            # Filter CU components that have paired DMMs
+            cu_components = [comp for comp in components if comp.component_type == EVMComponentType.CU and comp.pairing_id is not None]
+            
+            if cu_components:
+                # Get paired DMM components
+                cu_details = []
+                for cu_comp in cu_components:
+                    # Get the DMM component from the same pairing
+                    dmm_comp = db.query(EVMComponent).filter(
+                        EVMComponent.pairing_id == cu_comp.pairing_id,
+                        EVMComponent.component_type == EVMComponentType.DMM
+                    ).first()
+                    
+                    if dmm_comp:
+                        cu_details.append(CUDetail(
+                            serial_number=cu_comp.serial_number,
+                            box_no=cu_comp.box_no,
+                            dmm_no=dmm_comp.serial_number
+                        ))
+                
+                if cu_details:
+                    # Get the to_local_body name for alloted_to
+                    to_local_body = db.query(LocalBody).filter(
+                        LocalBody.id == evm.to_local_body_id
+                    ).first()
+                    
+                    # Get the from_user's district for alloted_from
+                    from_user = db.query(User).filter(User.id == from_user_id).first()
+                    from_district = db.query(District).filter(District.id == from_user.district_id).first()
+                    
+                    alloted_to = to_local_body.name if to_local_body else "Unknown"
+                    alloted_from = from_district.name if from_district else "Unknown"
+                    
+                    # Generate PDF
+                    pdf_filename = f"Annexure_1_{allotment.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                    Deo_BO_CU(cu_details, alloted_to, alloted_from, pdf_filename)
 
         # [Rest of your logging code remains the same...]
         allotment_log = AllotmentLogs(
@@ -148,13 +189,21 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
 
         db.commit()
 
-        return {
-            "id": allotment.id,
-            "allotment_type": allotment.allotment_type,
-            "status": allotment.status,
-            "evm_component_ids": evm.evm_component_ids
-        }
-
+        # Return FileResponse if PDF was generated, otherwise return JSON
+        if pdf_filename:
+            return FileResponse(
+                path=pdf_filename,
+                filename=pdf_filename,
+                media_type='application/pdf'
+            )
+        else:
+            return {
+                "id": allotment.id,
+                "allotment_type": allotment.allotment_type,
+                "status": allotment.status,
+                "evm_component_ids": evm.evm_component_ids
+            }
+        
 def pending(evm: AllotmentModel, from_user_id: int):
     with Database.get_session() as db:
         # Same validations as create_allotment
@@ -198,7 +247,15 @@ def pending(evm: AllotmentModel, from_user_id: int):
 
 def view_pending_allotments(user_id: int):
     with Database.get_session() as db:
-        pending_allotments = db.query(AllotmentPending).filter(
+        from sqlalchemy.orm import joinedload
+        
+        pending_allotments = db.query(AllotmentPending).options(
+            joinedload(AllotmentPending.from_local_body),
+            joinedload(AllotmentPending.to_local_body),
+            joinedload(AllotmentPending.from_district),
+            joinedload(AllotmentPending.to_district),
+            joinedload(AllotmentPending.to_user)
+        ).filter(
             AllotmentPending.from_user_id == user_id,
             AllotmentPending.status == "pending"
         ).all()
@@ -219,7 +276,9 @@ def view_pending_allotments(user_id: int):
                 "id": allotment.id,
                 "allotment_type": allotment.allotment_type,
                 "to_user_name": allotment.to_user.username if allotment.to_user else None,
+                "from_local_body_id": allotment.from_local_body_id,
                 "from_local_body_name": allotment.from_local_body.name if allotment.from_local_body else None,
+                "to_local_body_id": allotment.to_local_body_id,
                 "to_local_body_name": allotment.to_local_body.name if allotment.to_local_body else None,
                 "from_district_name": allotment.from_district.name if allotment.from_district else None,
                 "to_district_name": allotment.to_district.name if allotment.to_district else None,
