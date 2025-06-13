@@ -1,7 +1,7 @@
 from models.evm import (AllotmentItem, Allotment,EVMComponent,
                         AllotmentType, PollingStation,AllotmentItemPending,AllotmentPending)
 from models.logs import AllotmentLogs,EVMComponentLogs,AllotmentItemLogs, PairingRecordLogs
-from models.users import User,LocalBody,District
+from models.users import User,LocalBody,District,Warehouse
 from core.db import Database
 from pydantic import BaseModel
 from typing import Optional,List
@@ -14,16 +14,17 @@ from models.evm import PairingRecord, EVMComponentType
 from fastapi import Response
 import traceback
 from fastapi.responses import FileResponse
-from annexure.Annex_5 import CUDetail,Deo_BO_CU
+from annexure.Annex_5 import CUDetail,Deo_BO_CU,BUDetail,Deo_BO_BU
+
 
 class AllotmentModel(BaseModel):
     allotment_type: AllotmentType
-    from_local_body_id: Optional[int] = None #Remove for prod
+    from_local_body_id: Optional[str] = None #Remove for prod
     from_district_id: Optional[int] = None  #Remove for prod
 
     to_user_id: int
     evm_component_ids: List[int]
-    to_local_body_id: Optional[int] = None
+    to_local_body_id: Optional[str] = None
     to_district_id: Optional[int] = None
     original_allotment_id: Optional[int] = None
     reject_reason: Optional[str] = None
@@ -109,7 +110,18 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
 
         # Generate PDF if conditions are met
         pdf_filename = None
-        if evm.allotment_type == AllotmentType.DEO_TO_BO or evm.allotment_type == AllotmentType.DEO_TO_ERO :
+        if evm.allotment_type == AllotmentType.DEO_TO_BO or evm.allotment_type == AllotmentType.DEO_TO_ERO:
+            # Get dynamic alloted_from and alloted_to
+            from_user = db.query(User).filter(User.id == from_user_id).first()
+            from_district = db.query(District).filter(District.id == from_user.district_id).first() if from_user else None
+            
+            to_local_body = None
+            if evm.to_local_body_id:
+                to_local_body = db.query(LocalBody).filter(LocalBody.id == evm.to_local_body_id).first()
+            
+            alloted_from = from_district.name if from_district else "Unknown"
+            alloted_to = to_local_body.name if to_local_body else "Unknown"
+            
             # Filter CU components that have paired DMMs
             cu_components = [comp for comp in components if comp.component_type == EVMComponentType.CU and comp.pairing_id is not None]
             
@@ -131,21 +143,34 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                         ))
                 
                 if cu_details:
-                    # Get the to_local_body name for alloted_to
-                    to_local_body = db.query(LocalBody).filter(
-                        LocalBody.id == evm.to_local_body_id
-                    ).first()
-                    
-                    # Get the from_user's district for alloted_from
-                    from_user = db.query(User).filter(User.id == from_user_id).first()
-                    from_district = db.query(District).filter(District.id == from_user.district_id).first()
-                    
-                    alloted_to = to_local_body.name if to_local_body else "Unknown"
-                    alloted_from = from_district.name if from_district else "Unknown"
-                    
-                    # Generate PDF
-                    pdf_filename = f"Annexure_1_{allotment.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                    # Generate CU PDF
+                    pdf_filename = f"Annexure_1_CU_{allotment.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                     Deo_BO_CU(cu_details, alloted_to, alloted_from, pdf_filename)
+            
+            # Filter BU components
+            bu_components = [comp for comp in components if comp.component_type == EVMComponentType.BU]
+            
+            if bu_components:
+                # Create BU details
+                bu_details = []
+                for bu_comp in bu_components:
+                    # Get warehouse name from current_warehouse_id
+                    warehouse_name = "Unknown"
+                    if bu_comp.current_warehouse_id:
+                        warehouse = db.query(Warehouse).filter(Warehouse.id == bu_comp.current_warehouse_id).first()
+                        if warehouse:
+                            warehouse_name = warehouse.name
+                    
+                    bu_details.append(BUDetail(
+                        serial_number=bu_comp.serial_number,
+                        box_no=bu_comp.box_no,
+                        warehouse=warehouse_name
+                    ))
+                
+                if bu_details:
+                    # Generate BU PDF
+                    pdf_filename = f"Annexure_1_BU_{allotment.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                    Deo_BO_BU(bu_details, alloted_to, alloted_from, pdf_filename)
 
         # [Rest of your logging code remains the same...]
         allotment_log = AllotmentLogs(
@@ -222,10 +247,10 @@ def pending(evm: AllotmentModel, from_user_id: int):
             allotment_type=evm.allotment_type,
             from_user_id=from_user_id,
             to_user_id=evm.to_user_id,
-            from_local_body_id=evm.from_local_body_id,
-            to_local_body_id=evm.to_local_body_id,
-            from_district_id=evm.from_district_id,
-            to_district_id=evm.to_district_id,
+            from_local_body_id=evm.from_local_body_id,  
+            to_local_body_id=evm.to_local_body_id,      
+            from_district_id=evm.from_district_id,      
+            to_district_id=evm.to_district_id,         
             initiated_by_id=from_user_id,
             status="pending"
         )
@@ -327,6 +352,39 @@ def view_pending_allotment_components(pending_allotment_id: int, user_id: int):
             } for component in components
         ]
 
+def remove_pending_allotment(pending_allotment_id: int, user_id: int):
+    with Database.get_session() as db:
+        # Fetch the pending allotment and verify ownership
+        pending_allotment = db.query(AllotmentPending).filter(
+            AllotmentPending.id == pending_allotment_id,
+            AllotmentPending.from_user_id == user_id
+        ).first()
+
+        if not pending_allotment:
+            raise HTTPException(status_code=404, detail="Pending allotment not found or unauthorized")
+
+        # Fetch all item records
+        items = db.query(AllotmentItemPending).filter(
+            AllotmentItemPending.allotment_pending_id == pending_allotment_id
+        ).all()
+
+        # Optional: Reset component status
+        for item in items:
+            component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
+            if component:
+                # Restore status — adjust this logic as per your domain rule
+                component.status = "FLC_Passed"
+
+        # Delete items
+        db.query(AllotmentItemPending).filter(
+            AllotmentItemPending.allotment_pending_id == pending_allotment_id
+        ).delete()
+
+        # Delete the pending allotment itself
+        db.delete(pending_allotment)
+        db.commit()
+
+        return {"status_code": 200, "message": "Pending allotment deleted successfully"}
 
 def approve_allotment(allotment_id: int, approver_id: int):
     with Database.get_session() as db:
