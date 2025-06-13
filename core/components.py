@@ -253,7 +253,7 @@ def view_paired_cu_sec():
                 "box_no": component.box_no,
                 "dom": component.dom,
                 "status": component.status,
-                "warehouse_id": component.current_warehouse_id,
+                "district_name": component.current_user.district.name if component.current_user and component.current_user.district else None,
                 "paired_components": [
                     {
                         "id": paired_component.id,
@@ -287,7 +287,7 @@ def view_paired_cu_deo(district_id: int):
                 "box_no": component.box_no,
                 "dom": component.dom,
                 "status": component.status,
-                "warehouse_id": component.current_warehouse_id,
+                "district_name": component.current_user.district.name if component.current_user and component.current_user.district else None,
                 "paired_components": [
                     {
                         "id": paired_component.id,
@@ -320,7 +320,7 @@ def view_paired_bu_sec():
                 "box_no": component.box_no,
                 "dom": component.dom,
                 "status": component.status,
-                "warehouse_id": component.current_warehouse_id,
+                "district_name": component.current_user.district.name if component.current_user and component.current_user.district else None,
             } for component in components
         ]
     
@@ -344,12 +344,11 @@ def view_paired_bu_deo(district_id:int):
                 "box_no": component.box_no,
                 "dom": component.dom,
                 "status": component.status,
-                "warehouse_id": component.current_warehouse_id,
+                "district_name": component.current_user.district.name if component.current_user and component.current_user.district else None,
             } for component in components
         ]
 
 def view_components_sec(component_type:str):
-
     with Database.get_session() as session:
         components = session.query(EVMComponent).filter(
             and_(
@@ -364,14 +363,12 @@ def view_components_sec(component_type:str):
                 "serial_number": component.serial_number,
                 "box_no": component.box_no,
                 "dom": component.dom,
-                "district_id": component.current_user.district_id,
-                "warehouse_id": component.current_warehouse_id,
+                "district_name": component.current_user.district.name if component.current_user and component.current_user.district else None,
                 "status": component.status
             } for component in components
         ]
     
 def view_components_deo(component_type:str,district_id:int):
-
     with Database.get_session() as session:
         components = session.query(EVMComponent).join(
             User, EVMComponent.current_user_id == User.id
@@ -389,9 +386,7 @@ def view_components_deo(component_type:str,district_id:int):
                 "serial_number": component.serial_number,
                 "box_no": component.box_no,
                 "dom": component.dom,
-                "district_id": component.current_user.district_id,
-                "warehouse_id": component.current_warehouse_id,
+                "district_name": component.current_user.district.name if component.current_user and component.current_user.district else None,
                 "status": component.status
             } for component in components
         ]
-    
