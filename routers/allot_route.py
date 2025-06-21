@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException,Body,Query
-from core.allotment import (create_allotment, AllotmentModel, reject_allotment,approve_allotment, 
+from core.allotment import (AllotmentModel, reject_allotment,approve_allotment, 
                             approval_queue, evm_commissioning,EVMCommissioningModel,
                             view_pending_allotment_components,view_pending_allotments,pending,remove_pending_allotment)
+from core.create_allotment import create_allotment
 from utils.authtoken import get_current_user
 from typing import List,Optional
 
