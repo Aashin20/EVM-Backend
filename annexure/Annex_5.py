@@ -6,15 +6,21 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from datetime import datetime
 from typing import Optional, List
-from dataclasses import dataclass
+from pydantic import BaseModel
 
-@dataclass
-class CUDetail:
+
+class CUDetail(BaseModel):
     serial_number: str
     box_no: int
     dmm_no: str
+    warehouse: str
 
-def Deo_BO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, filename="Annexure_1.pdf"):
+class BUDetail(BaseModel):
+    serial_number: str
+    box_no: int
+    warehouse: str
+
+def Deo_BO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, filename="Annexure_5.pdf"):
     # Create document
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
@@ -93,7 +99,7 @@ def Deo_BO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, filen
          [Paragraph("Allotted From", header_label_style),
          Paragraph("Allotted To", header_label_style),
          Paragraph("Date", header_label_style)],
-        [Paragraph("SEC", header_value_style),
+        [Paragraph(alloted_from, header_value_style),
          Paragraph(alloted_to, header_value_style),
          Paragraph(current_date, header_value_style), ]
     ]
@@ -129,13 +135,13 @@ def Deo_BO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, filen
     
     # Add component rows
     for i, comp in enumerate(details):
-        warehouse_name = "TVM1"
+       
         
         comp_data.append([
             str(i+1), 
             comp.serial_number,
             str(comp.box_no),
-            warehouse_name,
+            comp.warehouse,
             comp.dmm_no
         ])
     
@@ -192,13 +198,8 @@ def Deo_BO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, filen
     return filename
 
 
-@dataclass
-class BUDetail:
-    serial_number: str
-    box_no: int
-    warehouse: str
 
-def Deo_BO_BU(details: List[BUDetail], alloted_to: str, alloted_from: str, filename="Annexure_1.pdf"):
+def Deo_BO_BU(details: List[BUDetail], alloted_to: str, alloted_from: str, filename="Annexure_5.pdf"):
     # Create document
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
