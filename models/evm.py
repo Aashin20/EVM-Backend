@@ -251,13 +251,18 @@ class AuditLog(Base):
     user = relationship("User")
 
 class PollingStation(Base):
-        __tablename__ = 'polling_stations'
-        
-        id = Column(Integer, primary_key=True)
-        name = Column(String, nullable=False)
-        local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=False)
-        status = Column(String, nullable=True)  
-        approver_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-        local_body = relationship("LocalBody", back_populates="polling_stations")
-        pairing_records = relationship("PairingRecord", back_populates="polling_station")
-        approver = relationship("User", foreign_keys=[approver_id])
+    __tablename__ = 'polling_stations'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+
+    local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=False)
+    constituency_id = Column(String, ForeignKey('constituencies.id'), nullable=False)
+
+    status = Column(String, nullable=True)
+    approver_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    local_body = relationship("LocalBody", back_populates="polling_stations")
+    constituency = relationship("Constituency", back_populates="polling_stations")
+    pairing_records = relationship("PairingRecord", back_populates="polling_station")
+    approver = relationship("User", foreign_keys=[approver_id])
