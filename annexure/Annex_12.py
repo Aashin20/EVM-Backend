@@ -16,7 +16,7 @@ class CUDetail(BaseModel):
     comp_warehouse: Optional[str] = None
     
 
-def BO_DEO_Return(details: List[CUDetail], order_no: str, alloted_from: str, alloted_to: str, filename="Annexure_5.pdf"):
+def BO_DEO_Return(details: List[CUDetail], order_no: str, alloted_from: str, alloted_to: str, filename="Annexure_12.pdf"):
   
     doc = SimpleDocTemplate(filename, pagesize=landscape(A4), 
                           leftMargin=0.5*inch, rightMargin=0.5*inch, 
@@ -65,7 +65,7 @@ def BO_DEO_Return(details: List[CUDetail], order_no: str, alloted_from: str, all
     
     # Logo
     try:
-        logo = Image("logo.png", width=1*inch, height=1*inch)
+        logo = Image("annexure/logo.png", width=1*inch, height=1*inch)
         logo.hAlign = 'CENTER'
         elements.append(logo)
     except:
