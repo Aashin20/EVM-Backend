@@ -356,3 +356,114 @@ def _create_bu_logs(session, data_list, user_id):
         session.rollback()
 
 
+def flc_dmm(data_list: List[FLCDMMModel], user_id: int):
+    """Simple FLC DMM processing - All or Nothing approach"""
+    if not data_list:
+        raise HTTPException(status_code=400, detail="No data provided")
+    
+    try:
+        with Database.get_session() as session:
+            # 1. Get all DMM components in one query
+            serials = [data.dmm_serial for data in data_list]
+            components = session.query(EVMComponent).filter(
+                EVMComponent.serial_number.in_(serials)
+            ).all()
+            comp_map = {c.serial_number: c for c in components}
+            
+            # 2. Validate all components exist
+            missing = [s for s in serials if s not in comp_map]
+            if missing:
+                raise HTTPException(status_code=404, detail=f"DMM components not found: {missing}")
+            
+            # 3. Process records
+            flc_records = []
+            dmm_pdf_data = []
+            
+            for data in data_list:
+                dmm = comp_map[data.dmm_serial]
+                
+                # Update component status
+                dmm.status = "FLC_Passed" if data.passed else "FLC_Failed"
+                
+                # Create FLC record
+                flc = FLCDMMUnit(
+                    dmm_id=dmm.id,
+                    passed=data.passed,
+                    remarks=data.remarks,
+                    flc_by_id=user_id
+                )
+                flc_records.append(flc)
+                
+                # PDF data (using blank fields for unused columns)
+                dmm_pdf_data.append({
+                    "cu_number": "",  # Blank - not used for DMM
+                    "dmm_number": dmm.serial_number,
+                    "dmm_seal_no": "",  # Blank - not used for DMM only
+                    "cu_pink_seal": "",  # Blank - not used for DMM only
+                    "passed": data.passed
+                })
+            
+            # 4. Save everything at once
+            session.add_all(flc_records)
+            session.commit()  # Single commit - all or nothing
+            
+            # 5. Create logs
+            _create_dmm_logs(session, data_list, user_id)
+            
+            # 6. Generate PDF (reusing CU certificate function)
+            pdf_filename = FLC_Certificate_CU(dmm_pdf_data)
+            return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"FLC DMM error: {e}")
+        raise HTTPException(status_code=500, detail="DMM FLC processing failed")
+
+def _create_dmm_logs(session, data_list, user_id):
+    """Create logs for DMM processing"""
+    try:
+        # Create component logs first
+        comp_logs = []
+        for data in data_list:
+            dmm = session.query(EVMComponent).filter_by(serial_number=data.dmm_serial).first()
+            
+            comp_log = EVMComponentLogs(
+                serial_number=dmm.serial_number,
+                component_type=dmm.component_type,
+                status=dmm.status,
+                is_verified=dmm.is_verified,
+                dom=dmm.dom,
+                box_no=dmm.box_no,
+                current_user_id=dmm.current_user_id,
+                current_warehouse_id=dmm.current_warehouse_id,
+                pairing_id=dmm.pairing_id
+            )
+            comp_logs.append(comp_log)
+        
+        session.add_all(comp_logs)
+        session.flush()
+        
+        # Create FLC logs (using FLCRecordLogs with nulls for unused fields)
+        flc_logs = []
+        for i, data in enumerate(data_list):
+            flc_log = FLCRecordLogs(
+                cu_id=None,  # NULL - not used for DMM only
+                dmm_id=comp_logs[i].id,  # Only DMM component log ID
+                dmm_seal_id=None,  # NULL - not used for DMM only
+                pink_paper_seal_id=None,  # NULL - not used for DMM only
+                box_no=None,  # NULL - not using box_no for DMM
+                passed=data.passed,
+                remarks=data.remarks,
+                flc_by_id=user_id
+            )
+            flc_logs.append(flc_log)
+        
+        session.add_all(flc_logs)
+        session.commit()
+        logger.info(f"Successfully created logs for {len(data_list)} DMM FLC records")
+        
+    except Exception as e:
+        logger.error(f"Error creating DMM logs: {e}")
+        # Don't fail main operation for logging errors
+        session.rollback()
