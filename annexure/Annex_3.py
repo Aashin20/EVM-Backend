@@ -9,7 +9,7 @@ from typing import List
 from reportlab.lib.units import inch
 
 
-def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):  # Changed type hint
+def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):
     # Create document with adjusted margins
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                             leftMargin=0.5*inch, rightMargin=0.5*inch, 
@@ -72,9 +72,9 @@ def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):  # Ch
     for i, comp in enumerate(components):
         comp_data.append([
             str(i+1), 
-            comp["serial_number"],  # Dictionary access
+            comp["serial_number"],
             current_date,
-            "Passed" if comp["passed"] else "Failed",  # Dictionary access
+            "Passed" if comp["passed"] else "Failed",
             "", "", ""
         ])
     
@@ -82,6 +82,7 @@ def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):  # Ch
     
     comp_table = Table(comp_data, colWidths=col_widths)
     comp_table.setStyle(TableStyle([
+        # Apply grid to all cells first
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -89,6 +90,16 @@ def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):  # Ch
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
         ('BACKGROUND', (0, 1), (-1, 1), colors.lightgrey),
         ('ROWBACKGROUNDS', (0, 2), (-1, -1), [colors.white, colors.beige]),
+        
+        # Remove horizontal lines for signature columns (columns 4, 5, 6) in data rows
+        ('LINEBELOW', (4, 2), (6, -1), 0, colors.white),
+        ('LINEABOVE', (4, 3), (6, -1), 0, colors.white),
+        
+        # Remove background colors from signature columns in data rows
+        ('BACKGROUND', (4, 2), (6, -1), colors.white),
+        
+        # Ensure table border (bottom line) is maintained
+        ('LINEBELOW', (0, -1), (-1, -1), 0.5, colors.black),
     ]))
     elements.append(comp_table)
     
@@ -174,6 +185,7 @@ def FLC_Certificate_CU(components: List[dict], filename="Annexure_3.pdf"):
     
     comp_table = Table(comp_data, colWidths=col_widths)
     comp_table.setStyle(TableStyle([
+        # Apply grid to all cells first
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -181,6 +193,16 @@ def FLC_Certificate_CU(components: List[dict], filename="Annexure_3.pdf"):
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
         ('BACKGROUND', (0, 1), (-1, 1), colors.lightgrey),
         ('ROWBACKGROUNDS', (0, 2), (-1, -1), [colors.white, colors.beige]),
+        
+        # Remove horizontal lines for signature columns (columns 7, 8, 9) in data rows
+        ('LINEBELOW', (7, 2), (9, -1), 0, colors.white),
+        ('LINEABOVE', (7, 3), (9, -1), 0, colors.white),
+        
+        # Remove background colors from signature columns in data rows
+        ('BACKGROUND', (7, 2), (9, -1), colors.white),
+        
+        # Ensure table border (bottom line) is maintained
+        ('LINEBELOW', (0, -1), (-1, -1), 0.5, colors.black),
     ]))
     elements.append(comp_table)
     
