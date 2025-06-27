@@ -16,7 +16,7 @@ class CUReturn(BaseModel):
     dmm_no_treasury: str
 
 
-def Return_RO_BO(details: List[CUReturn], RO:str,alloted_to: str, DOP:str,DOC:str, filename="Annexure_11.pdf"):
+def Return_RO_BO(details: List[CUReturn], RO:str,alloted_to: str, filename="Annexure_11.pdf"):
     # Create document
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
@@ -99,8 +99,8 @@ def Return_RO_BO(details: List[CUReturn], RO:str,alloted_to: str, DOP:str,DOC:st
          Paragraph("Date of Return", header_label_style)
          ],
         [Paragraph(RO, header_value_style),
-         Paragraph(DOP, header_value_style),
-         Paragraph(DOC, header_value_style), 
+         Paragraph(".........", header_value_style),
+         Paragraph(".........", header_value_style), 
          Paragraph(alloted_to, header_value_style),
          Paragraph(current_date, header_value_style)
          ]
