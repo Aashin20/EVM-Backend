@@ -6,6 +6,23 @@ import uvicorn
 from routers import (auth_route,comp_route,allot_route,
                      master_route,flc_route,meta_route,
                      return_route,logs_route,announce_route)
+import logging
+from logging.handlers import RotatingFileHandler
+import os
+
+# Create logs directory if not exists
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
+# Configure root logger
+logging.basicConfig(
+    level=logging.INFO,  # Change to DEBUG for more verbosity
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        RotatingFileHandler("logs/app.log", maxBytes=5*1024*1024, backupCount=5),
+        logging.StreamHandler()  # Also log to console
+    ]
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
