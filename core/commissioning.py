@@ -454,3 +454,70 @@ def view_reserve(user_id: int):
                 detail=f"Error fetching reserve components: {str(e)}"
             )
 
+def allot_reserve_evm_to_polling_station(
+    commissioning_list: List[ReserveEVMCommissioningModel],
+    polling_station_id: int,
+    user_id: int
+):
+    with Database.get_session() as db:
+        try:
+            polling_station = db.query(PollingStation).filter(
+                PollingStation.id == polling_station_id
+            ).first()
+            if not polling_station:
+                raise HTTPException(status_code=404, detail="Polling station not found")
+
+            for commissioning_data in commissioning_list:
+                # Get reserve CU
+                cu = db.query(EVMComponent).filter(
+                    EVMComponent.serial_number == commissioning_data.cu_serial,
+                    EVMComponent.status == "reserve",
+                    EVMComponent.component_type == EVMComponentType.CU
+                ).first()
+                if not cu:
+                    raise HTTPException(status_code=400, detail=f"Reserve CU {commissioning_data.cu_serial} not found")
+
+                # Pair with BUs
+                for i, bu_serial in enumerate(commissioning_data.bu_serial):
+                    bu = db.query(EVMComponent).filter(
+                        EVMComponent.serial_number == bu_serial,
+                        EVMComponent.status == "reserve",
+                        EVMComponent.component_type == EVMComponentType.BU
+                    ).first()
+                    if not bu:
+                        raise HTTPException(status_code=400, detail=f"Reserve BU {bu_serial} not found")
+                    bu.pairing_id = cu.pairing_id
+                    bu.status = "polling"
+                    # Assign BU pink paper seal
+                    seal_serial = commissioning_data.bu_pink_paper_seals[i]
+                    bu_pink_seal = db.query(EVMComponent).filter(
+                        EVMComponent.serial_number == seal_serial,
+                        EVMComponent.component_type == EVMComponentType.BU_PINK_PAPER_SEAL
+                    ).first()
+                    if not bu_pink_seal:
+                        bu_pink_seal = EVMComponent(
+                            serial_number=seal_serial,
+                            component_type=EVMComponentType.BU_PINK_PAPER_SEAL,
+                            status="polling",
+                            pairing_id=cu.pairing_id,
+                            is_sec_approved=True
+                        )
+                        db.add(bu_pink_seal)
+                    else:
+                        bu_pink_seal.pairing_id = cu.pairing_id
+                        bu_pink_seal.status = "polling"
+
+                # Update CU status and pairing
+                cu.status = "polling"
+                if cu.pairing_id:
+                    pairing = db.query(PairingRecord).filter(PairingRecord.id == cu.pairing_id).first()
+                    pairing.polling_station_id = polling_station_id
+                    pairing.completed_by_id = user_id
+                    pairing.completed_at = datetime.now(ZoneInfo("Asia/Kolkata"))
+
+            db.commit()
+            return {"status": "success", "message": "Reserve EVM(s) commissioned and allotted to polling station."}
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error allotting and commissioning reserve EVMs: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error allotting and commissioning reserve EVMs: {str(e)}")
