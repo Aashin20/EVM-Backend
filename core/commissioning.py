@@ -433,3 +433,24 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                 detail=f"Error during commissioning: {str(e)}"
             )
 
+def view_reserve(user_id: int):
+    with Database.get_session() as db:
+        try:
+            reserve_comp = db.query(EVMComponent).filter(
+                EVMComponent.current_user_id == user_id,
+                EVMComponent.status == "reserve",
+                EVMComponent.component_type.in_([
+                    EVMComponentType.CU,
+                    EVMComponentType.BU,
+                    EVMComponentType.DMM,
+                ])
+            ).all()
+            return reserve_comp
+        except Exception as e:
+            logger.error(f"Error fetching reserve components: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error fetching reserve components: {str(e)}"
+            )
+
