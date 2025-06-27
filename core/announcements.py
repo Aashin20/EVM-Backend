@@ -2,10 +2,10 @@ from models.alert import Announcements
 from core.db import Database
 from fastapi import Response,HTTPException
 
-def create_announcement(content: str,from_user_id: int,to_user:str):
+def create_announcement(title:str,content: str,tag:str,from_user_id: int,to_user:str):
     try:
         with Database().get_session() as db:
-            announcement = Announcements(content = content, from_user_id=from_user_id, to_user=to_user)
+            announcement = Announcements(title=title,content = content, tag=tag, from_user_id=from_user_id, to_user=to_user)
             db.add(announcement)
             db.commit()
         return Response(status_code=200)
