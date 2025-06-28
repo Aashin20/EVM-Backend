@@ -6,12 +6,13 @@ import bcrypt
 from pydantic import BaseModel, constr
 from typing import Optional
 from sqlalchemy.orm import joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from typing import List
 from fastapi import HTTPException, Response
 from models.users import Role
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import traceback
 
 class RegisterModel(BaseModel):
     username: constr(strip_whitespace=True, min_length=3)
@@ -33,6 +34,10 @@ class UpdateUserModel(BaseModel):
 class LoginModel(BaseModel):
     email: constr(strip_whitespace=True, min_length=3)
     password: constr(min_length=6)
+
+class PollingStationModel(BaseModel):
+    name: str
+    local_body_id: str
 
 def login(data: LoginModel):
 
@@ -259,9 +264,7 @@ def get_RO(local_body_id: str):
             }
             for lb in panchayath
         ]
-class PollingStationModel(BaseModel):
-    name: str
-    local_body_id: str
+
 
 def add_ps(datas: List[PollingStationModel]):
     with Database.get_session() as session:
@@ -355,30 +358,56 @@ def get_ps(local_body:str):
 def get_evm_from_ps(local_body: str):
     with Database.get_session() as session:
         results = (
-            session.query(PollingStation, PairingRecord.evm_id, EVMComponent.status)
+            session.query(PollingStation, PairingRecord)
             .outerjoin(PairingRecord, PairingRecord.polling_station_id == PollingStation.id)
-            .outerjoin(EVMComponent, 
-                (EVMComponent.pairing_id == PairingRecord.id) & 
-                (EVMComponent.component_type == EVMComponentType.CU)
-            )
             .filter(PollingStation.local_body_id == local_body)
             .filter(PollingStation.status == "approved")
             .all()
         )
-        
+
         if not results:
             raise HTTPException(status_code=204)
 
-        return [
-            {
+        final_data = []
+        for ps, pairing in results:
+            components = {
+                "cu": [],
+                "dmm": [],
+                "bu": [],
+                "bu_pink_paper": [],
+                "evm_id": []
+            }
+
+            if pairing:
+                # Add evm_id as a list (even if it's a single value)
+                if pairing.evm_id:
+                    components["evm_id"].append(pairing.evm_id)
+
+                evm_components = (
+                    session.query(EVMComponent)
+                    .filter(EVMComponent.pairing_id == pairing.id)
+                    .all()
+                )
+
+                for comp in evm_components:
+                    if comp.component_type == EVMComponentType.CU:
+                        components["cu"].append(comp.serial_number)
+                    elif comp.component_type == EVMComponentType.DMM:
+                        components["dmm"].append(comp.serial_number)
+                    elif comp.component_type == EVMComponentType.BU:
+                        components["bu"].append(comp.serial_number)
+                    elif comp.component_type == EVMComponentType.PINK_PAPER_SEAL:
+                        components["bu_pink_paper"].append(comp.serial_number)
+
+            final_data.append({
                 "ps_id": ps.id,
                 "ps_name": ps.name,
-                "evm_no": evm_id,
-                "status": cu_status
-            }
-            for ps, evm_id, cu_status in results
-        ]
-    
+                "components": components
+            })
+
+        return final_data
+
+            
 def mass_deactivate(role_name: str, user_id:int):
     with Database.get_session() as db:
         try:
