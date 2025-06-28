@@ -12,6 +12,8 @@ class Announcements(Base):
     __tablename__ = 'announcements'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    tag = Column(String, nullable=False) 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     content = Column(String, nullable=False)
     from_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
