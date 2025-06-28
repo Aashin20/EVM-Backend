@@ -13,3 +13,11 @@ async def get_N35(data: EVMPair,allotment_order_no: str,current_user: dict=Depen
         return Form_N35(data, allotment_order_no, filename)
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate Form N-35"}
+    
+@router.post("/N36")
+async def get_N36(data: EVMPair,allotment_order_no: str,current_user: dict=Depends(get_current_user)):
+    try:
+        filename = f"Form_N36_{allotment_order_no}.pdf"
+        return Form_N36(data, allotment_order_no, filename)
+    except Exception as e:
+        return {"error": str(e), "message": "Failed to generate Form N-36"}
