@@ -21,3 +21,10 @@ async def get_N36(data: EVMPair,allotment_order_no: str,current_user: dict=Depen
         return Form_N36(data, allotment_order_no, filename)
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate Form N-36"}
+    
+@router.post("/pairing_sticker")
+async def get_pairing_sticker(data_list: list[EVMData], current_user: dict = Depends(get_current_user)):
+    try:
+        return pairing_sticker(data_list, filename="pairing_sticker.pdf")
+    except Exception as e:
+        return {"error": str(e), "message": "Failed to generate pairing sticker"}
