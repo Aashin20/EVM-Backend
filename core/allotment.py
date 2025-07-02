@@ -27,6 +27,9 @@ class AllotmentModel(BaseModel):
     to_district_id: Optional[int] = None
     original_allotment_id: Optional[int] = None
     reject_reason: Optional[str] = None
+    is_temporary: Optional[bool] = False
+    temporary_reason: Optional[str] = None
+    temporary_allotted_to_name: Optional[str] = None
 
 
 class AllotmentResponse(BaseModel):
