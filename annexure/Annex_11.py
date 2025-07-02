@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 class CUReturn(BaseModel):
     cu_no: str
-    bu_no: int
+    bu_no: str
     dmm_no_return: str
     dmm_no_treasury: str
 
