@@ -13,3 +13,7 @@ async def to_polling(local_body_id:str,status:str,current_user: dict = Depends(g
 @router.post('/decommission')
 async def evm_decommission(data: DecommissionModel,current_user: dict = Depends(get_current_user)):
     return decommission_evms(data)
+
+@router.get("/return/pending")
+async def return_pending_send(current_user: dict = Depends(get_current_user)):
+    return return_pending(current_user['user_id'])
