@@ -98,3 +98,8 @@ async def get_msr_details_cu():
 @router.get("/msr/details/bu")
 async def get_msr_details_bu():
     return get_bu_data()
+
+@router.get("/msr/details/bu/user/")
+async def get_msr_details_bu_by_user(current_user: dict = Depends(get_current_user)):
+    return get_bu_data_by_user(current_user['user_id'])
+
