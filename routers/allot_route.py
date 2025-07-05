@@ -50,3 +50,7 @@ async def evm_commissioning_route(data: List[EVMCommissioningModel] = Body(...),
 async def reserve_view(current_user: dict = Depends(get_current_user)):
     return view_reserve(current_user['user_id'])
 
+@router.post("/reserve/allot")
+async def allot_reserve_evm(data:ReserveEVMCommissioningModel,psno:int,current_user:dict = Depends(get_current_user)):
+    return allot_reserve_evm_to_polling_station(data,psno,current_user['user_id'])
+
