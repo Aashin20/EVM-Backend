@@ -73,3 +73,8 @@ async def approve_component(serial_numbers: List[str], current_user: dict = Depe
         raise HTTPException(status_code=401, detail="Unauthorized access")
     return approve_component_by_sec(serial_numbers, current_user['user_id'])
 
+@router.get("/pending")
+async def pending_approval(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != 'SEC':
+        raise HTTPException(status_code=401, detail="Unauthorized access")
+    return approval_queue_sec()
