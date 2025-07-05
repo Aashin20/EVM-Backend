@@ -17,3 +17,7 @@ async def evm_decommission(data: DecommissionModel,current_user: dict = Depends(
 @router.get("/return/pending")
 async def return_pending_send(current_user: dict = Depends(get_current_user)):
     return return_pending(current_user['user_id'])
+
+@router.get("/return/queue")
+async def return_queue_view(current_user: dict = Depends(get_current_user)):
+    return return_queue()
