@@ -273,6 +273,9 @@ def decommission_evms(data: DecommissionModel):
             raise HTTPException(status_code=500, detail=str(e))
         
 def damaged(evm_id: str):
+    """
+    Mark a component as damaged
+    """
     with Database.get_session() as session:
         evm = session.query(EVMComponent).filter(EVMComponent.serial_number == evm_id).first()
         if not evm:
@@ -286,3 +289,17 @@ def damaged(evm_id: str):
         else:
             raise HTTPException(status_code=400, detail="EVM already marked as damaged")
         
+def view_damaged(district_id: int):
+    """
+    View all damaged components in a district
+    """
+    with Database.get_session() as db:
+        damaged = db.query(EVMComponent).join(
+            User, EVMComponent.current_user_id == User.id
+        ).filter(
+            EVMComponent.status == "damaged",
+            User.district_id == district_id
+        ).all()
+        if not damaged:
+            raise HTTPException(status_code=404, detail="No damaged EVMs found in this district")
+        return damaged
