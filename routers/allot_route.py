@@ -54,3 +54,7 @@ async def reserve_view(current_user: dict = Depends(get_current_user)):
 async def allot_reserve_evm(data:ReserveEVMCommissioningModel,psno:int,current_user:dict = Depends(get_current_user)):
     return allot_reserve_evm_to_polling_station(data,psno,current_user['user_id'])
 
+@router.get("/temporary")
+async def view_temporary_allotments(current_user: dict = Depends(get_current_user)):
+    return view_temporary(current_user['user_id'])
+
