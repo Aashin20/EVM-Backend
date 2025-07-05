@@ -94,3 +94,7 @@ async def view_reserve_dmm(current_user: dict = Depends(get_current_user)):
 @router.get("/msr/details/cu")
 async def get_msr_details_cu():
     return get_evm_pairing_data()
+
+@router.get("/msr/details/bu")
+async def get_msr_details_bu():
+    return get_bu_data()
