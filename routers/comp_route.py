@@ -82,3 +82,7 @@ async def pending_approval(current_user: dict = Depends(get_current_user)):
 @router.post("/damaged/add")
 async def add_damaged(evm_id:str,current_user: dict = Depends(get_current_user)):
     return damaged(evm_id)
+
+@router.get("/damaged/view/{district_id}")
+async def damaged_view(district_id:int,current_user: dict = Depends(get_current_user)):
+    return view_damaged(district_id)
