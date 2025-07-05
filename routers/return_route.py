@@ -21,3 +21,7 @@ async def return_pending_send(current_user: dict = Depends(get_current_user)):
 @router.get("/return/queue")
 async def return_queue_view(current_user: dict = Depends(get_current_user)):
     return return_queue()
+
+@router.get("/return/to_ecil/{comp_serial}")
+async def return_to_ecil_route(comp_serial: str, current_user: dict = Depends(get_current_user)):
+    return return_to_ecil(comp_serial)
