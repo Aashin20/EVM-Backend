@@ -30,6 +30,8 @@ class AllotmentModel(BaseModel):
     is_temporary: Optional[bool] = False
     temporary_reason: Optional[str] = None
     temporary_allotted_to_name: Optional[str] = None
+    temporary_return_date: Optional[str] = None
+
 
 
 class AllotmentResponse(BaseModel):
@@ -211,10 +213,14 @@ def approve_allotment(allotment_id: int, approver_id: int):
         # Fetch approver user to get warehouse_id
         approver = db.query(User).filter(User.id == approver_id).first()
 
-
-        allotment.status = "approved"
-        allotment.approved_by_id = approver_id
-        allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
+        if allotment.is_temporary:
+            allotment.status = "temporary_approved"
+            allotment.approved_by_id = approver_id
+            allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
+        else:
+            allotment.status = "approved"
+            allotment.approved_by_id = approver_id
+            allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
 
         updated_component_ids = []
         
@@ -429,4 +435,64 @@ def reject_allotment(allotment_id: int, reject_reason: str, approver_id: int):
 
         db.commit()
         return Response(status_code=200)
+
+
+def return_temporary_allotment(allotment_id: int, return_date: str, user_id: int):  #Return temporary allotment
+    try:
+        with Database.get_session() as db:
+            # 1. Fetch the allotment
+            allotment = db.query(Allotment).filter(Allotment.id == allotment_id).first()
+            if not allotment:
+                raise HTTPException(status_code=404, detail="Allotment not found.")
+            if not allotment.is_temporary:
+                raise HTTPException(status_code=400, detail="Allotment is not temporary.")
+
+            # 2. Update return date and status
+            allotment.temporary_return_date = return_date
+            allotment.status = "returned"
+            db.add(allotment)
+
+            # 3. Log allotment return
+            allotment_log = AllotmentLogs(
+                allotment_type=allotment.allotment_type,
+                from_user_id=allotment.from_user_id,
+                to_user_id=allotment.to_user_id,
+                from_local_body_id=allotment.from_local_body_id,
+                to_local_body_id=allotment.to_local_body_id,
+                from_district_id=allotment.from_district_id,
+                to_district_id=allotment.to_district_id,
+                status=allotment.status,
+                created_at=allotment.created_at,
+            )
+            db.add(allotment_log)
+
+            # 4. Fetch all related EVM components in a single query
+            component_ids = [item.evm_component_id for item in allotment.items]
+            components = db.query(EVMComponent).filter(EVMComponent.id.in_(component_ids)).all()
+
+            for component in components:
+                # Set status back to FLC_Pending
+                component.status = "FLC_Pending"
+                
+                # Log each component change
+                comp_log = EVMComponentLogs(
+                    serial_number=component.serial_number,
+                    component_type=component.component_type,
+                    status=component.status,
+                    is_verified=component.is_verified,
+                    dom=component.dom,
+                    box_no=component.box_no,
+                    current_user_id=component.current_user_id,
+                    current_warehouse_id=component.current_warehouse_id,
+                    pairing_id=component.pairing_id,
+                )
+                db.add(comp_log)
+
+            db.commit()
+            db.refresh(allotment)
+            db.refresh(allotment_log)
+
+    except Exception as e:
+        # Optional: Add more detailed logging
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
