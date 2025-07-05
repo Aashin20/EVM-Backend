@@ -496,3 +496,25 @@ def return_temporary_allotment(allotment_id: int, return_date: str, user_id: int
         # Optional: Add more detailed logging
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
+def view_temporary(user_id: int): #View all temporary allotments for a user
+    with Database.get_session() as db:
+        # Fetch all temporary allotments for the user
+        temporary_allotments = db.query(Allotment).filter(
+            Allotment.from_user_id == user_id,
+            Allotment.is_temporary == True,
+        ).all()
+
+        if not temporary_allotments:
+            return {"message": "No temporary allotments found."}
+
+        return [
+            {
+                "id": allotment.id,
+                "allotment_type": allotment.allotment_type,
+                "from_user_id": allotment.from_user_id,
+                "status": allotment.status,
+                "temporary_allotted_to_name": allotment.temporary_allotted_to_name,
+                "temporary_reason": allotment.temporary_reason,
+                "temporary_return_date": allotment.temporary_return_date,
+            } for allotment in temporary_allotments
+        ]
