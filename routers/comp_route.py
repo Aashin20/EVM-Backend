@@ -103,3 +103,6 @@ async def get_msr_details_bu():
 async def get_msr_details_bu_by_user(current_user: dict = Depends(get_current_user)):
     return get_bu_data_by_user(current_user['user_id'])
 
+@router.get("/msr/details/cu/user")
+async def get_msr_details_cu_by_user(current_user: dict = Depends(get_current_user)):
+    return get_evm_pairing_data_by_user(current_user['user_id'])
