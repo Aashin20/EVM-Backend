@@ -78,3 +78,7 @@ async def pending_approval(current_user: dict = Depends(get_current_user)):
     if current_user['role'] != 'SEC':
         raise HTTPException(status_code=401, detail="Unauthorized access")
     return approval_queue_sec()
+
+@router.post("/damaged/add")
+async def add_damaged(evm_id:str,current_user: dict = Depends(get_current_user)):
+    return damaged(evm_id)
