@@ -5,10 +5,9 @@ from core.db import Database
 from models.evm import EVMComponent, EVMComponentType, PairingRecord, FLCRecord, AllotmentItem, Allotment,FLCBallotUnit
 from models.users import User, Warehouse
 
-def get_evm_pairing_data():
+def get_evm_pairing_data(): 
     """
-    Highly optimized function to get all EVM pairing data.
-    Fixed to handle multiple FLC records per CU by getting only the latest FLC record.
+    Get CU,DMM data in MSR Format
     """
     
     with Database.get_session() as db:
