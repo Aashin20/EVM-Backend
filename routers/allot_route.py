@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException,Body,Query
 from core.allotment import (AllotmentModel, reject_allotment,approve_allotment, 
-                            approval_queue, evm_commissioning,EVMCommissioningModel,
-                            view_pending_allotment_components,view_pending_allotments,pending,remove_pending_allotment)
+                            approval_queue,view_pending_allotment_components,
+                            view_pending_allotments,pending,remove_pending_allotment,
+                            view_temporary,return_temporary_allotment)
+from core.commissioning import evm_commissioning,EVMCommissioningModel,view_reserve,allot_reserve_evm_to_polling_station,ReserveEVMCommissioningModel
 from core.create_allotment import create_allotment
 from utils.authtoken import get_current_user
 from typing import List,Optional
@@ -44,3 +46,7 @@ async def queue(current_user: dict = Depends(get_current_user)):
 async def evm_commissioning_route(data: List[EVMCommissioningModel] = Body(...),current_user: dict = Depends(get_current_user)):
     return evm_commissioning(data, current_user['user_id'])
     
+@router.get("/reserve")
+async def reserve_view(current_user: dict = Depends(get_current_user)):
+    return view_reserve(current_user['user_id'])
+
