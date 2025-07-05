@@ -5,6 +5,7 @@ from models.logs import PairingRecordLogs,EVMComponentLogs,FLCBallotUnitLogs,FLC
 from fastapi import Response,HTTPException
 from pydantic import BaseModel
 from sqlalchemy import or_
+from models.users import User
 
 
 class DecommissionModel(BaseModel):
@@ -172,11 +173,12 @@ def decommission_evms(data: DecommissionModel):
                 ).all()
                 
                 for comp in components:
-                    if comp.component_type in ["DMM_SEAL", "PINK_PAPER_SEAL"]:
+                    if comp.component_type in ["DMM_SEAL", "PINK_PAPER_SEAL","BU_PINK_PAPER_SEAL"]:
                         session.delete(comp)
                     elif comp.component_type == "DMM":
                         comp.status = "treasury"
                         comp.pairing_id = None
+                        comp.current_user_id = None
                     else:
                         comp.status = "FLC_Pending"
                         comp.pairing_id = None
@@ -269,3 +271,18 @@ def decommission_evms(data: DecommissionModel):
         except Exception as e:
             session.rollback()
             raise HTTPException(status_code=500, detail=str(e))
+        
+def damaged(evm_id: str):
+    with Database.get_session() as session:
+        evm = session.query(EVMComponent).filter(EVMComponent.serial_number == evm_id).first()
+        if not evm:
+            raise HTTPException(status_code=404, detail="EVM not found")
+        
+        if evm.status != "damaged":
+            evm.status = "damaged"
+            evm.pairing_id = None  
+            session.commit()
+            return Response(status_code=200)
+        else:
+            raise HTTPException(status_code=400, detail="EVM already marked as damaged")
+        
