@@ -17,7 +17,7 @@ import traceback
 class RegisterModel(BaseModel):
     username: constr(strip_whitespace=True, min_length=3)
     password: constr(min_length=6)
-    email: constr(strip_whitespace=True, min_length=3)
+    email: Optional[constr(strip_whitespace=True, min_length=3)] = None
     role_id: int
     level_id: int
     district_id: Optional[int] = None
@@ -32,7 +32,7 @@ class UpdateUserModel(BaseModel):
     is_active: Optional[constr(strip_whitespace=True)] = None
     
 class LoginModel(BaseModel):
-    email: constr(strip_whitespace=True, min_length=3)
+    username: constr(strip_whitespace=True, min_length=3)
     password: constr(min_length=6)
 
 class PollingStationModel(BaseModel):
@@ -45,7 +45,7 @@ def login(data: LoginModel):
         current = session.query(User).options(
             joinedload(User.role),
             joinedload(User.level)
-        ).filter(User.email == data.email).first()
+        ).filter(User.username == data.username).first()
         if not current:
             return {"error": "User not found"}
         if current.is_active is False:
