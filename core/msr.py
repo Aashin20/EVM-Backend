@@ -112,7 +112,7 @@ def get_evm_pairing_data():
 
 def get_evm_pairing_data_by_user(user_id):
     """
-    Fetch CU,DMM data for Components with a user in MSR Format
+    Fetch CU,DMM data for components with a user in MSR Format
     """
     
     with Database.get_session() as db:
@@ -216,4 +216,64 @@ def get_evm_pairing_data_by_user(user_id):
         ]
 
 
+
+def get_bu_data_by_user(user_id):
+    """
+    Fetch BU data for components with a user in MSR Format
+    """
+    
+    with Database.get_session() as db:
+        # Subquery to get the latest FLC record for each BU
+        latest_flc_subquery = db.query(
+            FLCBallotUnit.bu_id,
+            func.max(FLCBallotUnit.flc_date).label('latest_flc_date')
+        ).group_by(FLCBallotUnit.bu_id).subquery()
+        
+        # Query for BU components filtered by user
+        results = db.query(
+            EVMComponent.id,
+            User.username.label('bu_received_from'),
+            EVMComponent.serial_number.label('ballot_unit_no'),
+            EVMComponent.dom.label('year_of_manufacture'),
+            FLCBallotUnit.flc_date,
+            FLCBallotUnit.passed.label('flc_status'),
+            EVMComponent.box_no.label('bu_box_no'),
+            Warehouse.name.label('bu_warehouse')
+        ).select_from(EVMComponent)\
+        .outerjoin(User, User.id == EVMComponent.last_received_from_id)\
+        .outerjoin(
+            latest_flc_subquery, 
+            latest_flc_subquery.c.bu_id == EVMComponent.id
+        )\
+        .outerjoin(
+            FLCBallotUnit, 
+            and_(
+                FLCBallotUnit.bu_id == EVMComponent.id,
+                FLCBallotUnit.flc_date == latest_flc_subquery.c.latest_flc_date
+            )
+        )\
+        .outerjoin(Warehouse, Warehouse.id == EVMComponent.current_warehouse_id)\
+        .filter(
+            and_(
+                EVMComponent.component_type == EVMComponentType.BU,
+                EVMComponent.current_user_id == user_id  # Filter by user
+            )
+        )\
+        .order_by(EVMComponent.id)\
+        .all()
+        
+        # Format results for BU table structure
+        return [
+            {
+                'sl_no': i,
+                'bu_received_from': row.bu_received_from or "",
+                'ballot_unit_no': row.ballot_unit_no or "",
+                'year_of_manufacture': row.year_of_manufacture.strftime("%Y") if row.year_of_manufacture else "",
+                'flc_date': row.flc_date.strftime("%d/%m/%Y") if row.flc_date else "",
+                'flc_status': "Passed" if row.flc_status else ("Failed" if row.flc_status is not None else ""),
+                'bu_box_no': str(row.bu_box_no) if row.bu_box_no else "",
+                'bu_warehouse': row.bu_warehouse or ""
+            }
+            for i, row in enumerate(results, 1)
+        ]
 
