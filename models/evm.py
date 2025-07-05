@@ -14,6 +14,7 @@ class EVMComponentType(str, enum.Enum):
     DMM = "DMM"
     DMM_SEAL = "DMM_SEAL"
     PINK_PAPER_SEAL = "PINK_PAPER_SEAL"
+    BU_PINK_PAPER_SEAL = "BU_PINK_PAPER_SEAL"
 
 class ReturnReason(str, enum.Enum):
     Polling_Completed = "Polling Completed"
@@ -47,7 +48,7 @@ class EVMComponent(Base):
     serial_number = Column(String, unique=True, nullable=False)
     component_type = Column(Enum(EVMComponentType), nullable=False)
 
-    status = Column(String, default="FLC_Pending")  # available, paired, used, failed, returned
+    status = Column(String, default="FLC_Pending")  
     is_allocated = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     dom = Column(Date, nullable=True)
@@ -55,9 +56,14 @@ class EVMComponent(Base):
     current_user_id = Column(Integer, ForeignKey('users.id'))
     current_warehouse_id = Column(String, ForeignKey('warehouses.id'), nullable=True)
     pairing_id = Column(Integer, ForeignKey('pairings.id', ondelete="CASCADE"), nullable=True)
-    pairing = relationship("PairingRecord", back_populates="components")
+    is_sec_approved = Column(Boolean, default=False)
+    last_received_from_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    date_of_receipt = Column(Date, nullable=True)
+    last_received_from = relationship("User", foreign_keys=[last_received_from_id])
 
-    current_user = relationship("User")
+    pairing = relationship("PairingRecord", back_populates="components")
+    
+    current_user = relationship("User",foreign_keys=[current_user_id])
     current_warehouse = relationship("Warehouse")
 
 class PairingRecord(Base):
@@ -99,13 +105,15 @@ class Allotment(Base):
     reject_reason = Column(String, nullable=True)
 
     original_allotment_id = Column(Integer, ForeignKey('allotments.id'), nullable=True)
-
     status = Column(String, default="pending")  # pending, approved, rejected
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     approved_at = Column(DateTime, nullable=True)
 
     is_temporary = Column(Boolean, default=False)
     temporary_reason= Column(String, nullable=True)
+    temporary_allotted_to_name = Column(String, nullable=True) 
+    temporary_return_date = Column(String, nullable=True)
+
 
     from_user = relationship("User", foreign_keys=[from_user_id])
     to_user = relationship("User", foreign_keys=[to_user_id])
@@ -115,7 +123,7 @@ class Allotment(Base):
     to_district = relationship("District", foreign_keys=[to_district_id])
     from_local_body = relationship("LocalBody", foreign_keys=[from_local_body_id])
     to_local_body = relationship("LocalBody", foreign_keys=[to_local_body_id])
-
+  
     items = relationship("AllotmentItem", back_populates="allotment", cascade="all, delete-orphan")
     original_allotment = relationship("Allotment", remote_side=[id])
 
@@ -146,6 +154,9 @@ class AllotmentPending(Base):
 
     is_temporary = Column(Boolean, default=False)
     temporary_reason= Column(String, nullable=True)
+    temporary_allotted_to_name = Column(String, nullable=True) 
+    temporary_return_date = Column(String, nullable=True)
+
 
     from_user = relationship("User", foreign_keys=[from_user_id])
     to_user = relationship("User", foreign_keys=[to_user_id])
@@ -221,6 +232,20 @@ class FLCBallotUnit(Base):
     flc_by = relationship("User")
     bu = relationship("EVMComponent")
 
+
+class FLCDMMUnit(Base):
+    __tablename__ = "flc_dmm_unit"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    dmm_id = Column(Integer, ForeignKey("evm_components.id"), nullable=False)
+    passed = Column(Boolean, nullable=False)
+    remarks = Column(String(500), nullable=True)
+    flc_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    dmm = relationship("EVMComponent", foreign_keys=[dmm_id])
+    flc_by = relationship("User", foreign_keys=[flc_by_id])
 
 
 class Notification(Base):
