@@ -340,3 +340,15 @@ def return_pending(user_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def return_queue():
+    """
+    Used by SEC to view return queue
+    """
+    try:
+        with Database.get_session() as db:
+            pending = db.query(EVMComponent).filter(EVMComponent.status == "Returned to ECIL Pending").all()
+            if not pending:
+                raise HTTPException(status_code=404, detail="No EVMs in return queue")
+            return pending
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))  #Fix for prod
