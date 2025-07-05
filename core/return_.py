@@ -323,3 +323,20 @@ def return_to_ecil(component_serial: str):
         else:
             raise HTTPException(status_code=400, detail="EVM already marked as returned")
         
+def return_pending(user_id: int):
+    """
+    Mark a component as pending for return. 
+    This is then send for approval to SEC. 
+    SEC calls return to ECIL fn to confirm
+    """
+    try:
+        with Database.get_session() as db:
+            pending = db.query(EVMComponent).filter(EVMComponent.status == "damaged",
+                                                    EVMComponent.current_user_id == user_id).all()
+            for comp in pending:
+                comp.status = "Returned to ECIL Pending"
+            db.commit()
+            return Response(status_code=200)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
