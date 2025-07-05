@@ -86,3 +86,7 @@ async def add_damaged(evm_id:str,current_user: dict = Depends(get_current_user))
 @router.get("/damaged/view/{district_id}")
 async def damaged_view(district_id:int,current_user: dict = Depends(get_current_user)):
     return view_damaged(district_id)
+
+@router.get("/reserve/dmm")
+async def view_reserve_dmm(current_user: dict = Depends(get_current_user)):
+    return view_dmm(current_user['user_id'])
