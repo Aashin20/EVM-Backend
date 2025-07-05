@@ -58,3 +58,8 @@ async def allot_reserve_evm(data:ReserveEVMCommissioningModel,psno:int,current_u
 async def view_temporary_allotments(current_user: dict = Depends(get_current_user)):
     return view_temporary(current_user['user_id'])
 
+@router.post("/temporary/return/")
+async def return_temporary(allotment_id: int, return_date: str, current_user: dict = Depends(get_current_user)):
+    if not allotment_id or not return_date:
+        raise HTTPException(status_code=400, detail="Allotment ID and return date are required")
+    return return_temporary_allotment(allotment_id, return_date, current_user['user_id'])
