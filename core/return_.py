@@ -303,3 +303,23 @@ def view_damaged(district_id: int):
         if not damaged:
             raise HTTPException(status_code=404, detail="No damaged EVMs found in this district")
         return damaged
+
+def return_to_ecil(component_serial: str):
+    """
+    Return a component to ECIL
+    """
+    with Database.get_session() as session:
+        component = session.query(EVMComponent).filter(EVMComponent.serial_number == component_serial).first()
+        if not component:
+            raise HTTPException(status_code=404, detail="EVM not found")
+        
+        if component.status != "Returned to ECIL":
+            component.status = "Returned to ECIL"
+            component.current_user_id = 2
+            component.is_sec_approved = False
+            component.current_warehouse_id = None
+            session.commit()
+            return Response(status_code=200)
+        else:
+            raise HTTPException(status_code=400, detail="EVM already marked as returned")
+        
