@@ -10,7 +10,7 @@ from core.components import get_details
 router = APIRouter()
 
 @router.post("/user/create")
-async def register_user(details: RegisterModel, current_user: dict = Depends(get_current_user)):
+async def register_user(details: RegisterModel,current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['Developer', 'SEC']:
         return {"status" : 401, "message": "Unauthorized access"}
     else:
