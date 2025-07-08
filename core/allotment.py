@@ -21,7 +21,7 @@ class AllotmentModel(BaseModel):
     from_local_body_id: Optional[str] = None #Remove for prod
     from_district_id: Optional[int] = None  #Remove for prod
 
-    to_user_id: int
+    to_user_id: Optional[int] = None
     evm_component_ids: List[int]
     to_local_body_id: Optional[str] = None
     to_district_id: Optional[int] = None
@@ -182,11 +182,11 @@ def remove_pending_allotment(pending_allotment_id: int, user_id: int):
             AllotmentItemPending.allotment_pending_id == pending_allotment_id
         ).all()
 
-        # Optional: Reset component status
+   
         for item in items:
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             if component:
-                # Restore status — adjust this logic as per your domain rule
+              
                 component.status = "FLC_Passed"
 
         # Delete items
@@ -471,10 +471,10 @@ def return_temporary_allotment(allotment_id: int, return_date: str, user_id: int
             components = db.query(EVMComponent).filter(EVMComponent.id.in_(component_ids)).all()
 
             for component in components:
-                # Set status back to FLC_Pending
+                # Set status back to FLC_Pendings
                 component.status = "FLC_Pending"
                 
-                # Log each component change
+                # Logging
                 comp_log = EVMComponentLogs(
                     serial_number=component.serial_number,
                     component_type=component.component_type,
@@ -518,3 +518,5 @@ def view_temporary(user_id: int): #View all temporary allotments for a user
                 "temporary_return_date": allotment.temporary_return_date,
             } for allotment in temporary_allotments
         ]
+    
+
