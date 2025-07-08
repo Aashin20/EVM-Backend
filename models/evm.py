@@ -34,7 +34,15 @@ class AllotmentType(str, enum.Enum):
     BO_TO_DEO = "BO_TO_DEO"
     ERO_TO_DEO = "ERO_TO_DEO"
     DEO_TO_SEC = "DEO_TO_SEC"
-
+    DEO_TO_CERO = "DEO_TO_CERO"
+    CERO_TO_RO = "CERO_TO_RO"
+    DEO_TO_MERO = "DEO_TO_MERO"
+    MERO_TO_RO = "MERO_TO_RO"
+    RO_TO_MERO = "RO_TO_MERO"
+    CERO_TO_DEO = "CERO_TO_DEO"
+    MERO_TO_DEO = "MERO_TO_DEO"
+    RO_TO_CERO = "RO_TO_CERO"
+    TEMPORARY_ALLOTMENT = "TEMPORARY_ALLOTMENT"
 
 class NotificationType(str, enum.Enum):
     NEW_EVM_ALLOTMENT = "New EVM Allotment"
