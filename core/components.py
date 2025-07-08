@@ -15,7 +15,7 @@ from fastapi.exceptions import HTTPException
 class ComponentModel(BaseModel):
     serial_number: str
     component_type: str
-    dom: date
+    dom: str
     box_no: int
     current_warehouse_id: Optional[int] = None #Remove for prod
 
@@ -58,6 +58,8 @@ def new_components(components: List[ComponentModel], phy_order_no: str, user_id:
                 box_no=component.box_no,
                 current_warehouse_id=component.current_warehouse_id,
                 current_user_id=user_id,
+                last_received_from_id = 3,
+                date_of_receipt=datetime.now()
             )
             to_add.append(new_component)
         
@@ -390,3 +392,4 @@ def view_components_deo(component_type:str,district_id:int):
                 "status": component.status
             } for component in components
         ]
+    
