@@ -393,3 +393,16 @@ def view_components_deo(component_type:str,district_id:int):
             } for component in components
         ]
     
+def approve_component_by_sec(serial_numbers: List[str]):
+  
+    with Database.get_session() as db:
+        components = db.query(EVMComponent).filter(
+            EVMComponent.serial_number.in_(serial_numbers)
+        ).all()
+
+        for component in components:
+            component.is_sec_approved = True
+
+        db.commit()
+
+        return Response(status_code=200)
