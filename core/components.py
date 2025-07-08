@@ -416,3 +416,23 @@ def approval_queue_sec():
                 EVMComponentType.PINK_PAPER_SEAL
             ])).all()
         return pending_components
+
+def view_dmm(user_id: int):
+    with Database.get_session() as session:
+        components = session.query(EVMComponent).filter(
+            and_(
+                EVMComponent.current_user_id == user_id,
+                EVMComponent.component_type == "DMM",
+                EVMComponent.pairing_id.is_(None), 
+                EVMComponent.status.in_(["FLC_Passed"]),
+            )
+        ).all()
+        if not components:
+            raise HTTPException(status_code=204)
+        return [
+            {
+                "id": component.id,
+                "serial_number": component.serial_number,
+                "status": component.status
+            } for component in components
+        ]
