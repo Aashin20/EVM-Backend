@@ -520,3 +520,19 @@ def view_temporary(user_id: int): #View all temporary allotments for a user
         ]
     
 
+def view_all_allotments_deo(district_id: int): #Used in dashboard to display all allotments in a district
+    with Database.get_session() as db:
+        allotments = db.query(Allotment).join(Allotment.from_local_body).filter(
+            LocalBody.district_id == district_id
+        ).options(
+            joinedload(Allotment.from_local_body),
+            joinedload(Allotment.to_local_body),
+        ).all()
+
+        return [{
+                    "id": a.id,
+                    "from_local_body": a.from_local_body.name, 
+                    "to_local_body": a.to_local_body.name, 
+                    "status": a.status,
+                    "created_at": a.created_at.isoformat(),
+                } for a in allotments]
