@@ -134,38 +134,59 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                     AllotmentPending.id == pending_allotment_id
                 ).delete()
 
-            # Generate PDF if conditions are met
+            # PDF Generation
             pdf_filename = None
-            
+                        
             # DEO to BO/ERO allotments
-            if evm.allotment_type == AllotmentType.DEO_TO_BO or evm.allotment_type == AllotmentType.DEO_TO_ERO:
+            if evm.allotment_type in {
+                AllotmentType.DEO_TO_BO,
+                AllotmentType.DEO_TO_ERO,
+                AllotmentType.DEO_TO_CERO,
+                AllotmentType.DEO_TO_MERO
+            }:
                 print(f"[ALLOTMENT] Generating DEO to BO/ERO PDFs")
                 pdf_filename = generate_deo_pdfs(db, components, from_user_id, evm)
-            
+
             # BO/ERO to RO allotments  
-            elif evm.allotment_type == AllotmentType.BO_TO_RO or evm.allotment_type == AllotmentType.ERO_TO_RO:
+            elif evm.allotment_type in {
+                AllotmentType.BO_TO_RO,
+                AllotmentType.ERO_TO_RO,
+                AllotmentType.CERO_TO_RO,
+                AllotmentType.MERO_TO_RO
+            }:
                 print(f"[ALLOTMENT] Generating BO/ERO to RO PDFs")
                 pdf_filename = generate_bo_ero_pdfs(db, components, from_user_id, evm, allotment.id)
-            
+
             # RO to BO/ERO returns
-            elif evm.allotment_type == AllotmentType.RO_TO_BO or evm.allotment_type == AllotmentType.RO_TO_ERO:
+            elif evm.allotment_type in {
+                AllotmentType.RO_TO_BO,
+                AllotmentType.RO_TO_ERO,
+                AllotmentType.RO_TO_CERO,
+                AllotmentType.RO_TO_MERO
+            }:
                 print(f"[ALLOTMENT] Generating RO to BO/ERO return PDF")
                 pdf_filename = generate_bo_ro_return_pdf(db, components, from_user_id, evm)
-            
+
             # BO/ERO to DEO returns
-            elif evm.allotment_type == AllotmentType.BO_TO_DEO or evm.allotment_type == AllotmentType.ERO_TO_DEO:
+            elif evm.allotment_type in {
+                AllotmentType.BO_TO_DEO,
+                AllotmentType.ERO_TO_DEO,
+                AllotmentType.CERO_TO_DEO,
+                AllotmentType.MERO_TO_DEO
+            }:
                 print(f"[ALLOTMENT] Generating BO/ERO to DEO return PDF")
                 pdf_filename = generate_bo_ero_deo_pdf(db, components, from_user_id, evm, allotment.id)
+
 
             print(f"[ALLOTMENT] Creating audit logs")
             # Create audit logs
             create_allotment_logs(db, allotment, components)
 
-            # Commit everything at once - all or nothing
+    
             db.commit()
             print(f"[ALLOTMENT] Allotment {allotment.id} created successfully")
 
-            # Return FileResponse if PDF was generated, otherwise return JSON
+        
             if pdf_filename:
                 print(f"[ALLOTMENT] Returning PDF file: {pdf_filename}")
                 return FileResponse(
@@ -182,7 +203,7 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                 }
                 
         except HTTPException:
-            # Re-raise HTTP exceptions as they are
+     
             db.rollback()
             print(f"[ALLOTMENT] HTTP Exception occurred, rolling back transaction")
             raise
