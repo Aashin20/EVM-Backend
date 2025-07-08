@@ -8,7 +8,7 @@ from typing import List
 from pydantic import BaseModel
 from utils.authtoken import get_current_user
 from core.return_ import damaged,view_damaged
-from core.msr import get_evm_pairing_data,get_bu_data,get_bu_data_by_user,get_evm_pairing_data_by_user
+from core.msr import MSR_CU_DMM,MSR_BU,MSR_BU_user,MSR_CU_DMM_user
 
 
 class PairedCU(BaseModel):
@@ -93,16 +93,16 @@ async def view_reserve_dmm(current_user: dict = Depends(get_current_user)):
 
 @router.get("/msr/details/cu")
 async def get_msr_details_cu():
-    return get_evm_pairing_data()
+    return MSR_CU_DMM()
 
 @router.get("/msr/details/bu")
 async def get_msr_details_bu():
-    return get_bu_data()
+    return MSR_BU()
 
 @router.get("/msr/details/bu/user/")
 async def get_msr_details_bu_by_user(current_user: dict = Depends(get_current_user)):
-    return get_bu_data_by_user(current_user['user_id'])
+    return MSR_BU_user(current_user['user_id'])
 
 @router.get("/msr/details/cu/user")
 async def get_msr_details_cu_by_user(current_user: dict = Depends(get_current_user)):
-    return get_evm_pairing_data_by_user(current_user['user_id'])
+    return MSR_CU_DMM_user(current_user['user_id'])
