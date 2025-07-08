@@ -5,25 +5,24 @@ from core.db import Database
 from models.evm import EVMComponent, EVMComponentType, PairingRecord, FLCRecord, AllotmentItem, Allotment,FLCBallotUnit
 from models.users import User, Warehouse
 
-def get_evm_pairing_data():
+def MSR_CU_DMM():
     """
     Fetch CU,DMM data in MSR Format. Used by SEC
     """
     
     with Database.get_session() as db:
-        # Create aliases for different component types
         cu_comp = aliased(EVMComponent, name='cu')
         dmm_comp = aliased(EVMComponent, name='dmm') 
         dmm_seal_comp = aliased(EVMComponent, name='dmm_seal')
         pink_seal_comp = aliased(EVMComponent, name='pink_seal')
         
-        # Subquery to get the latest FLC record for each CU
+    
         latest_flc_subquery = db.query(
             FLCRecord.cu_id,
             func.max(FLCRecord.flc_date).label('latest_flc_date')
         ).group_by(FLCRecord.cu_id).subquery()
         
-        # Build highly optimized query with strategic column selection
+      
         query = db.query(
             PairingRecord.id.label('pairing_id'),
             User.username.label('cu_dmm_received'),
@@ -44,7 +43,7 @@ def get_evm_pairing_data():
             Warehouse.name.label('cu_warehouse')
         ).select_from(PairingRecord)
         
-        # Optimize joins - use INNER JOIN where possible, LEFT JOIN only when needed
+        
         query = query.join(
             cu_comp, 
             and_(
@@ -84,19 +83,19 @@ def get_evm_pairing_data():
             User, User.id == cu_comp.last_received_from_id
         )
         
-        # Add ordering and execute
+    
         results = query.order_by(PairingRecord.id).all()
         
-        # Bulk format results using list comprehension for better performance
+      
         return [
             {
                 'sl_no': i,
                 'cu_dmm_received': row.cu_dmm_received or "",
                 'date_of_receipt': row.date_of_receipt.strftime("%d/%m/%Y") if row.date_of_receipt else "",
                 'control_unit_no': row.control_unit_no or "",
-                'month_year_manufacture_cu': row.cu_manufacture_date.strftime("%m/%Y") if row.cu_manufacture_date else "",
+                'month_year_manufacture_cu': row.cu_manufacture_date if row.cu_manufacture_date else "",
                 'dmm_no': row.dmm_no or "",
-                'month_year_manufacture_dmm': row.dmm_manufacture_date.strftime("%m/%Y") if row.dmm_manufacture_date else "",
+                'month_year_manufacture_dmm': row.dmm_manufacture_date if row.dmm_manufacture_date else "",
                 'dmm_seal_no': row.dmm_seal_no or "",
                 'cu_pink_paper_seal_no': row.cu_pink_paper_seal_no or "",
                 'flc_date': row.flc_date.strftime("%d/%m/%Y") if row.flc_date else "",
@@ -110,25 +109,24 @@ def get_evm_pairing_data():
         ]
 
 
-def get_evm_pairing_data_by_user(user_id):
+def MSR_CU_DMM_user(user_id):
     """
     Fetch CU,DMM data for components with a user in MSR Format
     """
     
     with Database.get_session() as db:
-        # Create aliases for different component types
         cu_comp = aliased(EVMComponent, name='cu')
         dmm_comp = aliased(EVMComponent, name='dmm') 
         dmm_seal_comp = aliased(EVMComponent, name='dmm_seal')
         pink_seal_comp = aliased(EVMComponent, name='pink_seal')
         
-        # Subquery to get the latest FLC record for each CU
+
         latest_flc_subquery = db.query(
             FLCRecord.cu_id,
             func.max(FLCRecord.flc_date).label('latest_flc_date')
         ).group_by(FLCRecord.cu_id).subquery()
         
-        # Build optimized query filtered by user
+       
         query = db.query(
             PairingRecord.id.label('pairing_id'),
             User.username.label('cu_dmm_received'),
@@ -149,13 +147,13 @@ def get_evm_pairing_data_by_user(user_id):
             Warehouse.name.label('cu_warehouse')
         ).select_from(PairingRecord)
         
-        # Join with CU component and filter by user
+     
         query = query.join(
             cu_comp, 
             and_(
                 cu_comp.pairing_id == PairingRecord.id,
                 cu_comp.component_type == EVMComponentType.CU,
-                cu_comp.current_user_id == user_id  # Filter by user
+                cu_comp.current_user_id == user_id  
             )
         ).outerjoin(
             dmm_comp, 
@@ -190,19 +188,18 @@ def get_evm_pairing_data_by_user(user_id):
             User, User.id == cu_comp.current_user_id
         )
         
-        # Execute query
+   
         results = query.order_by(PairingRecord.id).all()
-        
-        # Format results
+       
         return [
             {
                 'sl_no': i,
                 'cu_dmm_received': row.cu_dmm_received or "",
                 'date_of_receipt': row.date_of_receipt.strftime("%d/%m/%Y") if row.date_of_receipt else "",
                 'control_unit_no': row.control_unit_no or "",
-                'month_year_manufacture_cu': row.cu_manufacture_date.strftime("%m/%Y") if row.cu_manufacture_date else "",
+                'month_year_manufacture_cu': row.cu_manufacture_date if row.cu_manufacture_date else "",
                 'dmm_no': row.dmm_no or "",
-                'month_year_manufacture_dmm': row.dmm_manufacture_date.strftime("%m/%Y") if row.dmm_manufacture_date else "",
+                'month_year_manufacture_dmm': row.dmm_manufacture_date if row.dmm_manufacture_date else "",
                 'dmm_seal_no': row.dmm_seal_no or "",
                 'cu_pink_paper_seal_no': row.cu_pink_paper_seal_no or "",
                 'flc_date': row.flc_date.strftime("%d/%m/%Y") if row.flc_date else "",
@@ -217,22 +214,23 @@ def get_evm_pairing_data_by_user(user_id):
 
 
 
-def get_bu_data_by_user(user_id):
+def MSR_BU_user(user_id):
     """
     Fetch BU data for components with a user in MSR Format
     """
     
     with Database.get_session() as db:
-        # Subquery to get the latest FLC record for each BU
+     
         latest_flc_subquery = db.query(
             FLCBallotUnit.bu_id,
             func.max(FLCBallotUnit.flc_date).label('latest_flc_date')
         ).group_by(FLCBallotUnit.bu_id).subquery()
         
-        # Query for BU components filtered by user
+    
         results = db.query(
             EVMComponent.id,
             User.username.label('bu_received_from'),
+            EVMComponent.date_of_receipt,
             EVMComponent.serial_number.label('ballot_unit_no'),
             EVMComponent.dom.label('year_of_manufacture'),
             FLCBallotUnit.flc_date,
@@ -256,19 +254,20 @@ def get_bu_data_by_user(user_id):
         .filter(
             and_(
                 EVMComponent.component_type == EVMComponentType.BU,
-                EVMComponent.current_user_id == user_id  # Filter by user
+                EVMComponent.current_user_id == user_id 
             )
         )\
         .order_by(EVMComponent.id)\
         .all()
         
-        # Format results for BU table structure
+       
         return [
             {
                 'sl_no': i,
                 'bu_received_from': row.bu_received_from or "",
+                'date_of_receipt': row.date_of_receipt.strftime("%d/%m/%Y") if row.date_of_receipt else "",
                 'ballot_unit_no': row.ballot_unit_no or "",
-                'year_of_manufacture': row.year_of_manufacture.strftime("%Y") if row.year_of_manufacture else "",
+                'year_of_manufacture': row.year_of_manufacture if row.year_of_manufacture else "",
                 'flc_date': row.flc_date.strftime("%d/%m/%Y") if row.flc_date else "",
                 'flc_status': "Passed" if row.flc_status else ("Failed" if row.flc_status is not None else ""),
                 'bu_box_no': str(row.bu_box_no) if row.bu_box_no else "",
@@ -277,22 +276,23 @@ def get_bu_data_by_user(user_id):
             for i, row in enumerate(results, 1)
         ]
 
-def get_bu_data():
+def MSR_BU():
     """
     Fetch BU data in MSR Format. Used by SEC
     """
     
     with Database.get_session() as db:
-        # Subquery to get the latest FLC record for each BU
+     
         latest_flc_subquery = db.query(
             FLCBallotUnit.bu_id,
             func.max(FLCBallotUnit.flc_date).label('latest_flc_date')
         ).group_by(FLCBallotUnit.bu_id).subquery()
         
-        # Query for BU components only
+      
         results = db.query(
             EVMComponent.id,
             User.username.label('bu_received_from'),
+            EVMComponent.date_of_receipt,
             EVMComponent.serial_number.label('ballot_unit_no'),
             EVMComponent.dom.label('year_of_manufacture'),
             FLCBallotUnit.flc_date,
@@ -317,13 +317,14 @@ def get_bu_data():
         .order_by(EVMComponent.id)\
         .all()
         
-        # Format results for BU table structure
+      
         return [
             {
                 'sl_no': i,
                 'bu_received_from': row.bu_received_from or "",
+                'date_of_receipt': row.date_of_receipt.strftime("%d/%m/%Y") if row.date_of_receipt else "",
                 'ballot_unit_no': row.ballot_unit_no or "",
-                'year_of_manufacture': row.year_of_manufacture.strftime("%Y") if row.year_of_manufacture else "",
+                'year_of_manufacture': row.year_of_manufacture if row.year_of_manufacture else "",
                 'flc_date': row.flc_date.strftime("%d/%m/%Y") if row.flc_date else "",
                 'flc_status': "Passed" if row.flc_status else ("Failed" if row.flc_status is not None else ""),
                 'bu_box_no': str(row.bu_box_no) if row.bu_box_no else "",
