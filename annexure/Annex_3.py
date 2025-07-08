@@ -53,6 +53,9 @@ def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):
     # Current date
     current_date = datetime.now().strftime("%d-%m-%Y")
     
+    # Sort components: passed first, then failed
+    sorted_components = sorted(components, key=lambda x: (not x["passed"], x.get("serial_number", "")))
+    
     # Column headers
     headers = [
         "SI\nNo", 
@@ -69,7 +72,7 @@ def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):
     # Component table data
     comp_data = [headers, index_headers]
     
-    for i, comp in enumerate(components):
+    for i, comp in enumerate(sorted_components):
         comp_data.append([
             str(i+1), 
             comp["serial_number"],
@@ -89,7 +92,8 @@ def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):
         ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
         ('BACKGROUND', (0, 1), (-1, 1), colors.lightgrey),
-        ('ROWBACKGROUNDS', (0, 2), (-1, -1), [colors.white, colors.beige]),
+        # Removed alternating row backgrounds - all data rows now have white background
+        ('BACKGROUND', (0, 2), (-1, -1), colors.white),
         
         # Remove horizontal lines for signature columns (columns 4, 5, 6) in data rows
         ('LINEBELOW', (4, 2), (6, -1), 0, colors.white),
@@ -150,6 +154,9 @@ def FLC_Certificate_CU(components: List[dict], filename="Annexure_3.pdf"):
     # Current date
     current_date = datetime.now().strftime("%d-%m-%Y")
     
+    # Sort components: passed first, then failed
+    sorted_components = sorted(components, key=lambda x: (not x["passed"], x.get("cu_number", "")))
+    
     # Update column headers
     headers = [
         "SI\nNo", 
@@ -169,7 +176,7 @@ def FLC_Certificate_CU(components: List[dict], filename="Annexure_3.pdf"):
     # Component table data
     comp_data = [headers, index_headers]
     
-    for i, comp in enumerate(components):
+    for i, comp in enumerate(sorted_components):
         comp_data.append([
             str(i+1), 
             comp["cu_number"],    
@@ -192,7 +199,8 @@ def FLC_Certificate_CU(components: List[dict], filename="Annexure_3.pdf"):
         ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
         ('BACKGROUND', (0, 1), (-1, 1), colors.lightgrey),
-        ('ROWBACKGROUNDS', (0, 2), (-1, -1), [colors.white, colors.beige]),
+        # Removed alternating row backgrounds - all data rows now have white background
+        ('BACKGROUND', (0, 2), (-1, -1), colors.white),
         
         # Remove horizontal lines for signature columns (columns 7, 8, 9) in data rows
         ('LINEBELOW', (7, 2), (9, -1), 0, colors.white),
