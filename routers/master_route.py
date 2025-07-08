@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from core.user import (register, RegisterModel, view_users,UpdateUserModel,
                        edit_user,add_ps,approve_ps,reject_ps,view_ps,
                        PollingStationModel,get_ps,mass_deactivate)
+from core.allotment import view_all_allotments_deo
 from utils.authtoken import get_current_user
 from fastapi import Depends
 from typing import List
@@ -59,3 +60,7 @@ async def deactivate(role:str,current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['Developer', 'SEC']:
         return {"status": 401, "message": "Unauthorized access"}
     return mass_deactivate(role,current_user['user_id'])
+
+@router.get("/dashboard/{district_id}")
+async def view_deo_allotments(district_id: int):
+    return view_all_allotments_deo(district_id)
