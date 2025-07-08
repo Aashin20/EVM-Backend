@@ -35,6 +35,7 @@ class AllotmentType(str, enum.Enum):
     ERO_TO_DEO = "ERO_TO_DEO"
     DEO_TO_SEC = "DEO_TO_SEC"
 
+
 class NotificationType(str, enum.Enum):
     NEW_EVM_ALLOTMENT = "New EVM Allotment"
     RETURN_REQUEST = "Return Request"
@@ -51,7 +52,7 @@ class EVMComponent(Base):
     status = Column(String, default="FLC_Pending")  
     is_allocated = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
-    dom = Column(Date, nullable=True)
+    dom = Column(String, nullable=True)
     box_no = Column(Integer, nullable=True)
     current_user_id = Column(Integer, ForeignKey('users.id'))
     current_warehouse_id = Column(String, ForeignKey('warehouses.id'), nullable=True)
@@ -88,10 +89,11 @@ class Allotment(Base):
     __tablename__ = "allotments"
 
     id = Column(Integer, primary_key=True)
+    allotment_id = Column(String, unique=True) 
     allotment_type = Column(Enum(AllotmentType), nullable=False)
 
     from_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    to_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    to_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
 
     from_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
     to_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
@@ -129,11 +131,13 @@ class Allotment(Base):
 
 class AllotmentPending(Base):
     __tablename__ = 'allotment_pending' 
+
     id = Column(Integer, primary_key=True)
+    allotment_id = Column(String, unique=True) 
     allotment_type = Column(Enum(AllotmentType), nullable=False)
 
     from_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    to_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    to_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
 
     from_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
     to_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
@@ -174,7 +178,7 @@ class AllotmentItemPending(Base):
     
     id = Column(Integer, primary_key=True)
     allotment_pending_id = Column(Integer, ForeignKey('allotment_pending.id'), nullable=False)
-    evm_component_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)  # Changed from String to Integer
+    evm_component_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False) 
     
     allotment_pending = relationship("AllotmentPending", back_populates="items")
     evm_component = relationship("EVMComponent")
