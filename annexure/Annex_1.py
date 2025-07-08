@@ -128,13 +128,13 @@ def CU_1(components: List, component_type: str, warehouse_names: Dict[int, str],
     # Add component rows
     for i, comp in enumerate(components):
         warehouse_name = warehouse_names.get(comp.current_warehouse_id, "Unknown")
-        warehouse_name = "TVM1"
-        dom_formatted = comp.dom.strftime("%m/%Y") if hasattr(comp.dom, 'strftime') else comp.dom
+        warehouse_name = "Warehouse 1"
+        
         
         comp_data.append([
             str(i+1), 
             comp.serial_number,
-            dom_formatted,
+            comp.dom,
             str(comp.box_no),
             warehouse_name
         ])
@@ -306,12 +306,12 @@ def DMM_1(components: List, component_type: str,alloted_to:str,order_no:str, fil
         
         # Add component rows
     for i, comp in enumerate(components):
-            dom_formatted = comp.dom.strftime("%m/%Y") if hasattr(comp.dom, 'strftime') else comp.dom
+           
             
             comp_data.append([
                 str(i+1), 
                 comp.serial_number,
-                dom_formatted,
+                comp.dom,
             ])
         
         # Add Total Count row - FIXED: Only 3 columns
