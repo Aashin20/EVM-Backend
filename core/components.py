@@ -406,3 +406,13 @@ def approve_component_by_sec(serial_numbers: List[str]):
         db.commit()
 
         return Response(status_code=200)
+
+def approval_queue_sec():
+    with Database.get_session() as db:
+        pending_components = db.query(EVMComponent).filter(
+            EVMComponent.is_sec_approved == False,
+            EVMComponent.component_type.notin_([
+                EVMComponentType.DMM_SEAL,
+                EVMComponentType.PINK_PAPER_SEAL
+            ])).all()
+        return pending_components
