@@ -17,7 +17,7 @@ class AllotmentLogs(Base):
     allotment_type = Column(Enum(AllotmentType), nullable=False)
 
     from_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    to_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    to_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
 
     from_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
     to_district_id = Column(Integer, ForeignKey('districts.id'), nullable=True)
@@ -25,7 +25,7 @@ class AllotmentLogs(Base):
     to_local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=True)
 
     reject_reason = Column(String, nullable=True)
-    status = Column(String, default="pending")  # pending, approved, rejected
+    status = Column(String, default="pending")  
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     approved_at = Column(DateTime, nullable=True)
 
@@ -65,7 +65,7 @@ class EVMComponentLogs(Base):
 
     status = Column(String, default="FLC_Pending")  
     is_verified = Column(Boolean, default=False)
-    dom = Column(Date, nullable=True)
+    dom = Column(String, nullable=True)
     box_no = Column(Integer, nullable=True)
     current_user_id = Column(Integer, ForeignKey('users.id'))
     created_on = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
