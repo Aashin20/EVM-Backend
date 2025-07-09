@@ -67,6 +67,7 @@ def login(data: LoginModel):
                 "district_name": current.district.name if current.district else None,
                 "local_body_id": current.local_body_id if current.local_body_id else None,
                 "local_body_name": current.local_body.name if current.local_body else None,
+                "warehouse_id": current.warehouse_id if current.warehouse_id else None,
                 "status" : "success"}
 
 
@@ -396,7 +397,7 @@ def get_evm_from_ps(local_body: str):
                         components["dmm"].append(comp.serial_number)
                     elif comp.component_type == EVMComponentType.BU:
                         components["bu"].append(comp.serial_number)
-                    elif comp.component_type == EVMComponentType.PINK_PAPER_SEAL:
+                    elif comp.component_type == EVMComponentType.BU_PINK_PAPER_SEAL:
                         components["bu_pink_paper"].append(comp.serial_number)
 
             final_data.append({
