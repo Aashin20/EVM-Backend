@@ -1,5 +1,6 @@
 from models.evm import (AllotmentItem, Allotment,EVMComponent,
-                        AllotmentType, PollingStation,AllotmentItemPending,AllotmentPending)
+                        AllotmentType, PollingStation,AllotmentItemPending,
+                        AllotmentPending, TreasuryReceipt)
 from models.logs import AllotmentLogs,EVMComponentLogs,AllotmentItemLogs, PairingRecordLogs
 from models.users import User,LocalBody,District,Warehouse
 from core.db import Database
@@ -19,6 +20,8 @@ from annexure.Annex_6 import BO_RO_BU, BO_RO_CU
 from annexure.Annex_11 import Return_RO_BO
 from annexure.Annex_12 import BO_DEO_Return
 from datetime import date
+import zlib
+
 
 class AllotmentModel(BaseModel):
     allotment_type: AllotmentType
@@ -48,7 +51,8 @@ class ComponentDetail(BaseModel):
     comp_warehouse: Optional[str] = None
 
 
-def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_id: Optional[int]):  
+
+def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_id: Optional[int], treasury_receipt_pdf: Optional[bytes] = None):  
     print(f"[ALLOTMENT] Starting allotment creation for user {from_user_id}")
     with Database.get_session() as db:
         try:
@@ -127,19 +131,46 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                
                 # Update component status
                 if comp.status=="FLC_Pending":
-                    comp.status = "FLC_Pending/Temp"
+                    comp.status = "FLC_Pending/Pending"
                 elif comp.status=="FLC_Passed":
-                    comp.status = "FLC_Passed/Temp" #Check for prod
+                    comp.status = "FLC_Passed/Pending" #Check for prod
+                elif comp.status=="Treasury":
+                    comp.current_user_id = 1
+                    print(f"[ALLOTMENT] Updated component {comp.serial_number} with Treasury status to user_id=1")
+                
                 comp.last_received_from_id = from_user_id
                 comp.date_of_receipt = date.today()
                 
                 # Update box number if provided
                 if hasattr(evm, 'box_nos') and evm.box_nos:
-                    comp.box_no = evm.box_nos[i]
-
-                    print(f"[ALLOTMENT] Updated component {comp.serial_number} box_no to {evm.box_nos[i]}")
+                    if i < len(evm.box_nos) and evm.box_nos[i]: 
+                        comp.box_no = evm.box_nos[i]
+                        print(f"[ALLOTMENT] Updated component {comp.serial_number} box_no to {evm.box_nos[i]}")
                 
                 db.add(AllotmentItem(allotment_id=allotment.id, evm_component_id=comp.id))
+
+            # Handle Treasury Receipt PDF for RO return allotments
+            if evm.allotment_type in {
+                AllotmentType.RO_TO_BO,
+                AllotmentType.RO_TO_ERO,
+                AllotmentType.RO_TO_CERO,
+                AllotmentType.RO_TO_MERO
+            } and treasury_receipt_pdf:
+                print(f"[ALLOTMENT] Processing treasury receipt PDF for allotment {allotment.id}")
+                
+                # Compress the PDF data
+                compressed_pdf = zlib.compress(treasury_receipt_pdf)
+                print(f"[ALLOTMENT] PDF compressed from {len(treasury_receipt_pdf)} to {len(compressed_pdf)} bytes")
+                
+                # Create treasury receipt record
+                treasury_receipt = TreasuryReceipt(
+                    allotment_id=allotment.id,
+                    pdf_data=compressed_pdf,
+                    uploaded_on=datetime.now(ZoneInfo("Asia/Kolkata")),
+                    uploaded_by_id=from_user_id
+                )
+                db.add(treasury_receipt)
+                print(f"[ALLOTMENT] Treasury receipt record created")
 
             # Delete the pending allotment record if provided
             if pending_allotment_id:
@@ -168,7 +199,7 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                 AllotmentType.MERO_TO_RO
             }:
                 print(f"[ALLOTMENT] Generating BO/ERO to RO PDFs")
-                pdf_filename = generate_bo_ero_pdfs(db, components, from_user_id, evm, allotment.id)
+                pdf_filename = generate_bo_ero_pdfs(db, components, from_user_id, evm, allotment.allotment_id)
 
             # RO to BO/ERO returns
             elif evm.allotment_type in {
@@ -188,7 +219,7 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                 AllotmentType.MERO_TO_DEO
             }:
                 print(f"[ALLOTMENT] Generating BO/ERO to DEO return PDF")
-                pdf_filename = generate_bo_ero_deo_pdf(db, components, from_user_id, evm, allotment.id)
+                pdf_filename = generate_bo_ero_deo_pdf(db, components, from_user_id, evm, allotment.allotment_id)
 
 
             print(f"[ALLOTMENT] Creating audit logs")
