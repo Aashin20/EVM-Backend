@@ -16,7 +16,7 @@ class ComponentModel(BaseModel):
     serial_number: str
     component_type: str
     dom: str
-    box_no: int
+    box_no: Optional[int] = None
     current_warehouse_id: Optional[int] = None #Remove for prod
 
 
