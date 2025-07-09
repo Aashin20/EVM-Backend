@@ -124,7 +124,12 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
             # Create allotment items and update component status
             for i, component_id in enumerate(evm.evm_component_ids):
                 comp = component_map[component_id]
-                comp.status = "FLC_Passed/Temp"
+               
+                # Update component status
+                if comp.status=="FLC_Pending":
+                    comp.status = "FLC_Pending/Temp"
+                elif comp.status=="FLC_Passed":
+                    comp.status = "FLC_Passed/Temp" #Check for prod
                 comp.last_received_from_id = from_user_id
                 comp.date_of_receipt = date.today()
                 
