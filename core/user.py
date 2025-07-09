@@ -462,3 +462,17 @@ def get_deo():
             "name": user.district.name,
             "district_id": user.district_id,
         }for user in users]
+
+def add_warehouse(dis_id:int,warehouse_name:str):
+    with Database.get_session() as db:
+        warehouse = db.query(Warehouse).filter(Warehouse.name == warehouse_name).all()
+        if warehouse:
+            raise HTTPException(status_code=409,detail="Warehouse name already exists")
+        
+        new=Warehouse(
+            name=warehouse_name,
+            district_id=dis_id
+        )
+        db.add(new)
+        db.commit()
+        return Response(status_code=200)
