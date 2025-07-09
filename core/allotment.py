@@ -211,11 +211,16 @@ def approve_allotment(allotment_id: int, approver_id: int):
             if not component:
                 continue
 
-            # Always update the directly allotted component
+        
             component.current_user_id = allotment.to_user_id
             component.current_warehouse_id = approver.warehouse_id
             updated_component_ids.append(component.id)
-            component.status="FLC_Passed"
+            if component.status == "FLC_Passed/Temp" :
+                component.status="FLC_Passed"
+            elif component.status == "FLC_Pending/Pending":
+                component.status="FLC_Pending"
+            elif component.status=="FLC_Passed/Pending":
+                component.status="FLC_Passed"
 
             # If the component is part of a pairing, update all in the pair
             if component.pairing_id:
@@ -332,10 +337,12 @@ def approval_queue(user_id: int):
                     {
                         "component_type": item.evm_component.component_type,
                         "serial_number": item.evm_component.serial_number,
+                        "box_no": item.evm_component.box_no,
                         "paired_components": [
                             {
                                 "component_type": paired_comp.component_type,
                                 "serial_number": paired_comp.serial_number,
+                                "box_no": paired_comp.box_no
                                 
                             }
                             for paired_comp in (item.evm_component.pairing.components if item.evm_component.pairing else [])
@@ -392,7 +399,11 @@ def reject_allotment(allotment_id: int, reject_reason: str, approver_id: int):
         for item in allotment.items:
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             if component:
-                component.status="FLC_Passed"
+                if component.status=="FLC_Passed/Pending":
+                    component.status="FLC_Passed"
+                elif component.status=="FLC_Pending/Pending":
+                    component.status="FLC_Pending"
+            
                 comp_log = EVMComponentLogs(
                     serial_number=component.serial_number,
                     component_type=component.component_type,
@@ -478,10 +489,14 @@ def return_temporary_allotment(allotment_id: int, return_date: str, user_id: int
         # Optional: Add more detailed logging
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
-def view_temporary(user_id: int): #View all temporary allotments for a user
+def view_temporary(user_id: int):
     with Database.get_session() as db:
-        # Fetch all temporary allotments for the user
-        temporary_allotments = db.query(Allotment).filter(
+        temporary_allotments = db.query(Allotment).options(
+            joinedload(Allotment.items)
+            .joinedload(AllotmentItem.evm_component)
+            .joinedload(EVMComponent.pairing)
+            .joinedload(PairingRecord.components)
+        ).filter(
             Allotment.from_user_id == user_id,
             Allotment.is_temporary == True,
         ).all()
@@ -489,18 +504,53 @@ def view_temporary(user_id: int): #View all temporary allotments for a user
         if not temporary_allotments:
             return {"message": "No temporary allotments found."}
 
-        return [
-            {
+        seal_types = {
+            EVMComponentType.DMM_SEAL,
+            EVMComponentType.PINK_PAPER_SEAL,
+            EVMComponentType.BU_PINK_PAPER_SEAL
+        }
+
+        result = []
+
+        for allotment in temporary_allotments:
+            components_list = []
+            added_ids = set()
+
+            for item in allotment.items:
+                component = item.evm_component
+
+                if component.component_type in seal_types:
+                    continue
+
+                if component.id not in added_ids:
+                    components_list.append({
+                        "serial_number": component.serial_number,
+                        "component_type": component.component_type
+                    })
+                    added_ids.add(component.id)
+
+                if component.component_type == EVMComponentType.CU and component.pairing:
+                    for paired in component.pairing.components:
+                        if paired.id not in added_ids and paired.component_type not in seal_types:
+                            components_list.append({
+                                "serial_number": paired.serial_number,
+                                "component_type": paired.component_type
+                            })
+                            added_ids.add(paired.id)
+
+            result.append({
                 "id": allotment.id,
                 "allotment_type": allotment.allotment_type,
                 "from_user_id": allotment.from_user_id,
-                "status": allotment.status,
+                "components": components_list,
+                "created_at": allotment.created_at.strftime("%Y-%m-%d"),
                 "temporary_allotted_to_name": allotment.temporary_allotted_to_name,
                 "temporary_reason": allotment.temporary_reason,
                 "temporary_return_date": allotment.temporary_return_date,
-            } for allotment in temporary_allotments
-        ]
-    
+            })
+
+        return result
+
 
 def view_all_allotments_deo(district_id: int): #Used in dashboard to display all allotments in a district
     with Database.get_session() as db:
