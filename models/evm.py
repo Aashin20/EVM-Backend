@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime,
-    ForeignKey, Enum, Date 
+    ForeignKey, Enum, Date, LargeBinary
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -303,3 +303,14 @@ class PollingStation(Base):
     constituency = relationship("Constituency", back_populates="polling_stations")
     pairing_records = relationship("PairingRecord", back_populates="polling_station")
     approver = relationship("User", foreign_keys=[approver_id])
+
+class TreasuryReceipt(Base):
+    __tablename__ = 'treasury_receipts'
+
+    allotment_id = Column(Integer, ForeignKey('allotments.id'), nullable=False,primary_key=True)
+    pdf_data = Column(LargeBinary, nullable=False) 
+    uploaded_on = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    uploaded_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    allotment = relationship("Allotment", backref="treasury_receipts")
+    uploaded_by = relationship("User")
