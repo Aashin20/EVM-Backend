@@ -447,3 +447,17 @@ def get_warehouse(district: int):
             "id":ware.id,
             "name": ware.name,
         }for ware in warehouses]
+
+def get_deo():
+    with Database.get_session() as session:
+        users = session.query(User).options(
+            joinedload(User.district)
+        ).filter(User.role_id == 2).all()
+        if not users:
+            raise HTTPException(status_code=204,detail="No users found")
+        
+        return [{
+            "id": user.id,
+            "name": user.district.name,
+            "district_id": user.district_id,
+        }for user in users]
