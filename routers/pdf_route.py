@@ -34,3 +34,7 @@ async def get_pairing_sticker(data_list: list[EVMData], current_user: dict = Dep
 @router.get("/box-sticker/{district_id}")
 async def get_box_sticker(district_id:str,current_user: dict = Depends(get_current_user)):
     return generate_box_wise_sticker(district_id)
+
+@router.get("/templates/add/{component_type}")
+async def get_add_template(component_type:str):
+    return FileResponse(path=f"templates/Add_{component_type}.xlsx",media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename=f"Add_{component_type}")
