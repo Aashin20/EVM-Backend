@@ -24,17 +24,16 @@ class AllotmentModel(BaseModel):
     allotment_type: AllotmentType
     from_local_body_id: Optional[str] = None
     from_district_id: Optional[int] = None
-
     to_user_id: Optional[int] = None 
     temporary_allotted_to_name: Optional[str] = None
     temporary_reason: Optional[str] = None
     is_temporary: Optional[bool] = False  
-
     evm_component_ids: List[int]
     to_local_body_id: Optional[str] = None
     to_district_id: Optional[int] = None
     original_allotment_id: Optional[int] = None
     reject_reason: Optional[str] = None
+    box_nos: Optional[List[int]] = None
 
 class CUReturn(BaseModel):
     cu_no: str
@@ -51,7 +50,6 @@ class ComponentDetail(BaseModel):
 
 def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_id: Optional[int]):  
     print(f"[ALLOTMENT] Starting allotment creation for user {from_user_id}")
-    
     with Database.get_session() as db:
         try:
             # Start transaction - everything will be rolled back if any error occurs
@@ -99,7 +97,7 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
             else:
                 if not evm.to_user_id:
                     raise HTTPException(status_code=400, detail="to_user_id is required for non-temporary allotments.")
-
+           
             print(f"[ALLOTMENT] Creating allotment record")
             # Create the main allotment
             allotment = Allotment(
@@ -121,11 +119,21 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
             db.add(allotment)
             db.flush()  # Get the ID without committing
 
+            component_map = {comp.id: comp for comp in components}
+           
             # Create allotment items and update component status
-            for comp in components:
-                comp.status="FLC_Passed/Temp"
+            for i, component_id in enumerate(evm.evm_component_ids):
+                comp = component_map[component_id]
+                comp.status = "FLC_Passed/Temp"
                 comp.last_received_from_id = from_user_id
                 comp.date_of_receipt = date.today()
+                
+                # Update box number if provided
+                if hasattr(evm, 'box_nos') and evm.box_nos:
+                    comp.box_no = evm.box_nos[i]
+
+                    print(f"[ALLOTMENT] Updated component {comp.serial_number} box_no to {evm.box_nos[i]}")
+                
                 db.add(AllotmentItem(allotment_id=allotment.id, evm_component_id=comp.id))
 
             # Delete the pending allotment record if provided
