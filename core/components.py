@@ -30,7 +30,7 @@ def new_components(components: List[ComponentModel], phy_order_no: str, user_id:
         # Get current user and validate
         current_user = session.query(User).filter(User.id == user_id).first()
         
-        district_name = current_user.district.name
+        district_name = current_user.district.name if current_user.district else ""
             
         for component in components:
             if component.component_type not in EVMComponentType.__members__:
