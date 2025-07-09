@@ -347,3 +347,66 @@ def MSR_BU():
             }
             for i, row in enumerate(results, 1)
         ]
+    
+def MSR_BU_warehouse(warehouse_id):
+    """
+    Fetch BU data for components with in a warehouse in MSR Format
+    """
+    
+    with Database.get_session() as db:
+     
+        latest_flc_subquery = db.query(
+            FLCBallotUnit.bu_id,
+            func.max(FLCBallotUnit.flc_date).label('latest_flc_date')
+        ).group_by(FLCBallotUnit.bu_id).subquery()
+        
+    
+        results = db.query(
+            EVMComponent.id,
+            User.username.label('bu_received_from'),
+            EVMComponent.date_of_receipt,
+            EVMComponent.serial_number.label('ballot_unit_no'),
+            EVMComponent.dom.label('year_of_manufacture'),
+            FLCBallotUnit.flc_date,
+            FLCBallotUnit.passed.label('flc_status'),
+            EVMComponent.box_no.label('bu_box_no'),
+            Warehouse.name.label('bu_warehouse')
+        ).select_from(EVMComponent)\
+        .outerjoin(User, User.id == EVMComponent.last_received_from_id)\
+        .outerjoin(
+            latest_flc_subquery, 
+            latest_flc_subquery.c.bu_id == EVMComponent.id
+        )\
+        .outerjoin(
+            FLCBallotUnit, 
+            and_(
+                FLCBallotUnit.bu_id == EVMComponent.id,
+                FLCBallotUnit.flc_date == latest_flc_subquery.c.latest_flc_date
+            )
+        )\
+        .outerjoin(Warehouse, Warehouse.id == EVMComponent.current_warehouse_id)\
+        .filter(
+            and_(
+                EVMComponent.component_type == EVMComponentType.BU,
+                EVMComponent.current_warehouse_id == warehouse_id 
+            )
+        )\
+        .order_by(EVMComponent.id)\
+        .all()
+        
+       
+        return [
+            {
+                'sl_no': i,
+                'bu_received_from': row.bu_received_from or "",
+                'date_of_receipt': row.date_of_receipt.strftime("%d/%m/%Y") if row.date_of_receipt else "",
+                'ballot_unit_no': row.ballot_unit_no or "",
+                'year_of_manufacture': row.year_of_manufacture if row.year_of_manufacture else "",
+                'flc_date': row.flc_date.strftime("%d/%m/%Y") if row.flc_date else "",
+                'flc_status': "Passed" if row.flc_status else ("Failed" if row.flc_status is not None else ""),
+                'bu_box_no': str(row.bu_box_no) if row.bu_box_no else "",
+                'bu_warehouse': row.bu_warehouse or ""
+            }
+            for i, row in enumerate(results, 1)
+        ]
+    
