@@ -178,7 +178,6 @@ def decommission_evms(data: DecommissionModel):
                     elif comp.component_type == "DMM":
                         comp.status = "treasury"
                         comp.pairing_id = None
-                        comp.current_user_id = None
                     else:
                         comp.status = "FLC_Pending"
                         comp.pairing_id = None
