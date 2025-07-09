@@ -6,7 +6,10 @@ from fastapi import HTTPException
 from typing import Optional, List
 from fastapi.responses import FileResponse
 from annexure.Annex_3 import FLC_Certificate_BU, FLC_Certificate_CU
+from annexure.box_wise_sticker import Box_wise_sticker
 import logging
+from models.users import User
+from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
 
@@ -467,3 +470,104 @@ def _create_dmm_logs(session, data_list, user_id):
         logger.error(f"Error creating DMM logs: {e}")
         # Don't fail main operation for logging errors
         session.rollback()
+
+def generate_box_wise_sticker(district_id: str, filename: str = "Box_Wise_Sticker.pdf") -> str:
+    try:
+        with Database.get_session() as db:
+            components_query = db.query(
+                EVMComponent.box_no,
+                EVMComponent.serial_number,
+                EVMComponent.status,
+                EVMComponent.id,
+                EVMComponent.component_type
+            ).join(
+                User, EVMComponent.current_user_id == User.id
+            ).filter(
+                and_(
+                    User.district_id == district_id,
+                    EVMComponent.component_type.in_([
+                        EVMComponentType.CU,
+                        EVMComponentType.BU
+                    ])
+                )
+            ).order_by(
+                EVMComponent.box_no.nulls_last(),
+                EVMComponent.serial_number
+            )
+            
+            # Execute query
+            components = components_query.all()
+            
+            # Get component IDs for FLC date lookup
+            component_ids = [comp.id for comp in components]
+            
+            # Query FLC dates for CU components from FLCRecord
+            flc_cu_dates = {}
+            if component_ids:
+                flc_cu_query = db.query(
+                    FLCRecord.cu_id,
+                    FLCRecord.flc_date
+                ).filter(
+                    FLCRecord.cu_id.in_(component_ids)
+                ).all()
+                
+                for flc_record in flc_cu_query:
+                    flc_cu_dates[flc_record.cu_id] = flc_record.flc_date
+            
+            # Query FLC dates for BU components from FLCBallotUnit
+            flc_bu_dates = {}
+            if component_ids:
+                flc_bu_query = db.query(
+                    FLCBallotUnit.bu_id,
+                    FLCBallotUnit.flc_date
+                ).filter(
+                    FLCBallotUnit.bu_id.in_(component_ids)
+                ).all()
+                
+                for flc_record in flc_bu_query:
+                    flc_bu_dates[flc_record.bu_id] = flc_record.flc_date
+            
+            # Group components by box number
+            box_dict = {}
+            
+            for component in components:
+                box_no = component.box_no if component.box_no is not None else "Unboxed"
+                
+                if box_no not in box_dict:
+                    box_dict[box_no] = []
+                
+                # Get FLC date based on component type
+                flc_date = None
+                if component.component_type == EVMComponentType.CU:
+                    flc_date = flc_cu_dates.get(component.id)
+                elif component.component_type == EVMComponentType.BU:
+                    flc_date = flc_bu_dates.get(component.id)
+                
+                box_dict[box_no].append({
+                    "serial_no": component.serial_number,
+                    "status": component.status,
+                    "flc_date": flc_date.isoformat() if flc_date else None
+                })
+            
+            # Convert to list format with proper sorting
+            boxes_data = []
+            
+            # Sort box numbers (numeric first, then "Unboxed")
+            sorted_boxes = sorted(
+                box_dict.keys(),
+                key=lambda x: (x == "Unboxed", x if x != "Unboxed" else float('inf'))
+            )
+            
+            for box_no in sorted_boxes:
+                boxes_data.append({
+                    "box_no": box_no,
+                    "components": box_dict[box_no]
+                })
+            
+            # Generate PDF using the boxes data
+            pdf = Box_wise_sticker(boxes_data, filename)
+            return FileResponse(pdf, media_type='application/pdf', filename="Box_Wise_Sticker.pdf")
+    except Exception as e:
+            # Log the error in production
+        print(f"Error in generate_district_components_pdf: {str(e)}")
+        raise
