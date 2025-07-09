@@ -14,25 +14,7 @@ from models.evm import PairingRecord, EVMComponentType
 from fastapi import Response
 import traceback
 from fastapi.responses import FileResponse
-
-
-class AllotmentModel(BaseModel):
-    allotment_type: AllotmentType
-    from_local_body_id: Optional[str] = None #Remove for prod
-    from_district_id: Optional[int] = None  #Remove for prod
-
-    to_user_id: Optional[int] = None
-    evm_component_ids: List[int]
-    to_local_body_id: Optional[str] = None
-    to_district_id: Optional[int] = None
-    original_allotment_id: Optional[int] = None
-    reject_reason: Optional[str] = None
-    is_temporary: Optional[bool] = False
-    temporary_reason: Optional[str] = None
-    temporary_allotted_to_name: Optional[str] = None
-    temporary_return_date: Optional[str] = None
-
-
+from core.create_allotment import AllotmentModel
 
 class AllotmentResponse(BaseModel):
     id: int
