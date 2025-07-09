@@ -111,3 +111,7 @@ async def get_msr_details_cu_by_user(current_user: dict = Depends(get_current_us
 @router.get("/msr/details/cu/warehouse/{warehouse_id}")
 async def fetch_cu_warehouse(warehouse_id: str,current_user: dict = Depends(get_current_user)):
     return MSR_CU_DMM_warehouse(warehouse_id)
+
+@router.get("/msr/details/bu/warehouse/{warehouse_id}")
+async def fetch_cu_warehouse(warehouse_id: str,current_user: dict = Depends(get_current_user)):
+    return MSR_BU_warehouse(warehouse_id)
