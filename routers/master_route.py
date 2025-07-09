@@ -70,3 +70,7 @@ async def deactivate(role:str,current_user: dict = Depends(get_current_user)):
 @router.get("/dashboard/{district_id}")
 async def view_deo_allotments(district_id: int):
     return view_all_allotments_deo(district_id)
+
+@router.post("/warehouse/add")
+async def warehouse_add(data: WarehouseCreate):
+    return add_warehouse(data.district_id,data.warehouse_name)
