@@ -8,7 +8,8 @@ from typing import List
 from pydantic import BaseModel
 from utils.authtoken import get_current_user
 from core.return_ import damaged,view_damaged
-from core.msr import MSR_CU_DMM,MSR_BU,MSR_BU_user,MSR_CU_DMM_user
+from core.msr import (MSR_CU_DMM,MSR_BU,MSR_BU_user,MSR_CU_DMM_user,
+                      MSR_BU_warehouse,MSR_CU_DMM_warehouse)
 
 
 class PairedCU(BaseModel):
@@ -106,3 +107,7 @@ async def get_msr_details_bu_by_user(current_user: dict = Depends(get_current_us
 @router.get("/msr/details/cu/user")
 async def get_msr_details_cu_by_user(current_user: dict = Depends(get_current_user)):
     return MSR_CU_DMM_user(current_user['user_id'])
+
+@router.get("/msr/details/cu/warehouse/{warehouse_id}")
+async def fetch_cu_warehouse(warehouse_id: str,current_user: dict = Depends(get_current_user)):
+    return MSR_CU_DMM_warehouse(warehouse_id)
