@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException,Body,Query,Request
+from fastapi import APIRouter, Depends, HTTPException,Body,Query,Form,UploadFile,File, Request
 from core.allotment import (reject_allotment,approve_allotment, 
                             approval_queue,view_pending_allotment_components,
                             view_pending_allotments,pending,remove_pending_allotment,
@@ -7,12 +7,50 @@ from core.commissioning import evm_commissioning,EVMCommissioningModel,view_rese
 from core.create_allotment import create_allotment, AllotmentModel
 from utils.authtoken import get_current_user
 from typing import List,Optional
+import json
 
 router = APIRouter()
 
+
 @router.post("/")
-async def allot_evm(data: AllotmentModel,pending_id: Optional[int] = Query(None),current_user: dict = Depends(get_current_user)):
-    return create_allotment(data,current_user['user_id'],pending_id)
+async def allot_evm(
+    request: Request,
+    pending_id: Optional[int] = Query(None),
+    current_user: dict = Depends(get_current_user)
+):
+    content_type = request.headers.get("content-type", "")
+    
+    # Handle JSON requests (your current frontend)
+    if content_type.startswith("application/json"):
+        body = await request.json()
+        data = AllotmentModel(**body)
+        pdf_bytes = None
+        
+    # Handle multipart form requests (with file upload)
+    elif content_type.startswith("multipart/form-data"):
+        form_data = await request.form()
+        
+        if 'data' not in form_data:
+            raise HTTPException(status_code=400, detail="Missing 'data' field in form")
+        
+        try:
+            allotment_data = json.loads(form_data['data'])
+            data = AllotmentModel(**allotment_data)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON data")
+        
+        # Read PDF file if provided
+        pdf_bytes = None
+        if 'treasury_receipt_pdf' in form_data:
+            treasury_receipt_pdf = form_data['treasury_receipt_pdf']
+            if treasury_receipt_pdf.filename:  # Check if file was actually uploaded
+                pdf_bytes = await treasury_receipt_pdf.read()
+                print(f"[ENDPOINT] Received treasury receipt PDF: {treasury_receipt_pdf.filename}, size: {len(pdf_bytes)} bytes")
+    
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported content type")
+    
+    return create_allotment(data, current_user['user_id'], pending_id, pdf_bytes)
 
 @router.get("/pending/view")
 async def pending_view(current_user: dict = Depends(get_current_user)):
