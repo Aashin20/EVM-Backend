@@ -38,3 +38,7 @@ async def get_box_sticker(district_id:str,current_user: dict = Depends(get_curre
 @router.get("/templates/add/{component_type}")
 async def get_add_template(component_type:str):
     return FileResponse(path=f"templates/Add_{component_type}.xlsx",media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename=f"Add_{component_type}")
+
+@router.get("/templates/flc/{component_type}")
+async def get_flc_template(component_type:str):
+    return FileResponse(path=f"templates/FLC_{component_type}.xlsx",media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename=f"FLC_{component_type}")
