@@ -213,13 +213,13 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                             box_no=bu.box_no,
                             current_user_id=bu.current_user_id,
                             current_warehouse_id=bu.current_warehouse_id,
-                            pairing_id=cu.pairing_id,
+                            pairing_id=bu.pairing_id,
                             is_sec_approved=True
                         )
                         db.add(bu_pink_seal)
                     else:
                         # Update existing BU pink paper seal
-                        bu_pink_seal.pairing_id = cu.pairing_id
+                        bu_pink_seal.pairing_id = bu.pairing_id
                         bu_pink_seal.status = "polling"
                         bu_pink_seal.current_user_id = bu.current_user_id
                         bu_pink_seal.current_warehouse_id = bu.current_warehouse_id
@@ -383,7 +383,7 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                 district_name = user.district.name if user.district else "Unknown District"
                 local_body_name = user.local_body.name if user.local_body else "Unknown Local Body"
                 ro_name = user.username
-                strongroom_name = user.warehouse.name if user.warehouse else "Unknown Strongroom"
+                strongroom_name = user.warehouse.name if user.warehouse else "Strongroom 1"
                 
                 RO_PRO(
                     details=pdf_details,
