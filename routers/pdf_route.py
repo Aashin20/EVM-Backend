@@ -42,3 +42,7 @@ async def get_add_template(component_type:str):
 @router.get("/templates/flc/{component_type}")
 async def get_flc_template(component_type:str):
     return FileResponse(path=f"templates/FLC_{component_type}.xlsx",media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename=f"FLC_{component_type}")
+
+@router.get("/annexure-2")
+async def get_attendance_reg():
+    return FileResponse(path="templates/Attendance.pdf",media_type="application/pdf",filename="Annexure-II")
