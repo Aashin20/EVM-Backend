@@ -121,7 +121,8 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                     )
 
             db.add(allotment)
-            db.flush()  # Get the ID without committing
+            db.flush()
+            db.refresh(allotment)
 
             component_map = {comp.id: comp for comp in components}
            
@@ -134,7 +135,7 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
                     comp.status = "FLC_Pending/Pending"
                 elif comp.status=="FLC_Passed":
                     comp.status = "FLC_Passed/Pending" #Check for prod
-                elif comp.status=="Treasury":
+                elif comp.status=="treasury":
                     comp.current_user_id = 1
                     print(f"[ALLOTMENT] Updated component {comp.serial_number} with Treasury status to user_id=1")
                 
