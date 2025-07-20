@@ -11,7 +11,6 @@ import json
 
 router = APIRouter()
 
-
 @router.post("/")
 async def allot_evm(
     request: Request,
