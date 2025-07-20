@@ -3,8 +3,8 @@ from core.components import (new_components, ComponentModel,view_paired_cu,view_
                              view_paired_bu,view_paired_cu_sec,
                              view_paired_cu_deo,view_components_sec,view_components_deo,
                              view_paired_bu_deo,view_paired_bu_sec,approve_component_by_sec,approval_queue_sec,
-                             view_dmm)
-from typing import List
+                             view_dmm,warehouse_reentry)
+from typing import List, Dict, Any
 from pydantic import BaseModel
 from utils.authtoken import get_current_user
 from core.return_ import damaged,view_damaged
@@ -72,7 +72,7 @@ async def get_paired_bu(current_user: dict = Depends(get_current_user)):
 async def approve_component(serial_numbers: List[str], current_user: dict = Depends(get_current_user)):
     if current_user['role'] != 'SEC':
         raise HTTPException(status_code=401, detail="Unauthorized access")
-    return approve_component_by_sec(serial_numbers, current_user['user_id'])
+    return approve_component_by_sec(serial_numbers)
 
 @router.get("/pending")
 async def pending_approval(current_user: dict = Depends(get_current_user)):
@@ -115,3 +115,7 @@ async def fetch_cu_warehouse(warehouse_id: str,current_user: dict = Depends(get_
 @router.get("/msr/details/bu/warehouse/{warehouse_id}")
 async def fetch_cu_warehouse(warehouse_id: str,current_user: dict = Depends(get_current_user)):
     return MSR_BU_warehouse(warehouse_id)
+
+@router.post("/warehouse/reentry")
+async def warehouse_reentry_route(data: List[Dict[str, Any]], current_user: dict = Depends(get_current_user)):
+    return warehouse_reentry(data, current_user['user_id'])
