@@ -4,13 +4,17 @@ from models.users import User,Warehouse
 from .db import Database
 from pydantic import BaseModel
 from sqlalchemy import and_,or_,func
-from typing import Optional, List
+from typing import Optional, List,Dict, Any
 from datetime import date,datetime
 from annexure.Annex_1 import CU_1,DMM_1
 from fastapi.responses import FileResponse
 from fastapi import Response
 from models.users import LevelEnum
 from fastapi.exceptions import HTTPException
+from fastapi import HTTPException, Response
+from sqlalchemy.orm import joinedload
+from typing import List
+from collections import defaultdict
 
 class ComponentModel(BaseModel):
     serial_number: str
@@ -57,7 +61,7 @@ def new_components(components: List[ComponentModel], phy_order_no: str, user_id:
                 dom=component.dom,
                 box_no=component.box_no,
                 current_warehouse_id=component.current_warehouse_id,
-                current_user_id=user_id,
+                current_user_id=3,
                 last_received_from_id = 3,
                 date_of_receipt=datetime.now()
             )
@@ -157,6 +161,8 @@ def view_components(component_type:str,user_id: int):
                 "box_no": component.box_no,
                 "dom": component.dom,
                 "district_id": component.current_user.district_id,
+                "local_body_name": component.current_user.local_body.name if component.current_user and component.current_user.local_body else None,
+                "current_user": component.current_user.username if component.current_user else None,
                 "warehouse_id": component.current_warehouse_id,
                 "status": component.status
             } for component in components
@@ -219,7 +225,7 @@ def view_paired_bu(user_id:int):
         ]
 
 
-def get_details(user_id:int):
+def dashboard_all(user_id:int):
     with Database.get_session() as session:
         cu_count = session.query(EVMComponent).filter_by(current_user_id=user_id, component_type="CU").count()
         dmm_count = session.query(EVMComponent).filter_by(current_user_id=user_id, component_type="DMM").count()
@@ -228,6 +234,25 @@ def get_details(user_id:int):
         flc_pending = session.query(EVMComponent).filter_by(current_user_id=user_id, status="FLC_Pending").count()
         flc_passed = session.query(EVMComponent).filter_by(current_user_id=user_id, status="FLC_Passed").count()
         flc_failed = session.query(EVMComponent).filter_by(current_user_id=user_id, status="FLC_Failed").count()
+
+        return {
+            "CU": cu_count,
+            "DMM": dmm_count,
+            "BU": bu_count,
+            "FLC_Pending": flc_pending,
+            "FLC_Passed": flc_passed,
+            "FLC_Failed": flc_failed
+        }
+
+def sec_dashboard():
+    with Database.get_session() as session:
+        cu_count = session.query(EVMComponent).filter_by(component_type="CU").count()
+        dmm_count = session.query(EVMComponent).filter_by(component_type="DMM").count()
+        bu_count = session.query(EVMComponent).filter_by(component_type="BU").count()
+
+        flc_pending = session.query(EVMComponent).filter_by(status="FLC_Pending").count()
+        flc_passed = session.query(EVMComponent).filter_by(status="FLC_Passed").count()
+        flc_failed = session.query(EVMComponent).filter_by(status="FLC_Failed").count()
 
         return {
             "CU": cu_count,
@@ -351,6 +376,7 @@ def view_paired_bu_deo(district_id:int):
         ]
 
 def view_components_sec(component_type:str):
+    component_type = component_type.upper()
     with Database.get_session() as session:
         components = session.query(EVMComponent).filter(
             and_(
@@ -366,6 +392,8 @@ def view_components_sec(component_type:str):
                 "box_no": component.box_no,
                 "dom": component.dom,
                 "district_name": component.current_user.district.name if component.current_user and component.current_user.district else None,
+                "local_body_name": component.current_user.local_body.name if component.current_user and component.current_user.local_body else None,
+                "current_user": component.current_user.username if component.current_user else None,
                 "status": component.status
             } for component in components
         ]
@@ -389,33 +417,93 @@ def view_components_deo(component_type:str,district_id:int):
                 "box_no": component.box_no,
                 "dom": component.dom,
                 "district_name": component.current_user.district.name if component.current_user and component.current_user.district else None,
+                "local_body_name": component.current_user.local_body.name if component.current_user and component.current_user.local_body else None,
+                "current_user": component.current_user.username if component.current_user else None,
+                "warehouse_name": component.current_warehouse.name if component.current_warehouse else None,
                 "status": component.status
             } for component in components
         ]
     
+
+
 def approve_component_by_sec(serial_numbers: List[str]):
-  
+    if not serial_numbers:
+        raise HTTPException(status_code=400, detail="No serial numbers provided.")
+
     with Database.get_session() as db:
+ 
+        component = db.query(EVMComponent).options(
+            joinedload(EVMComponent.current_warehouse)
+        ).filter(
+            EVMComponent.serial_number == serial_numbers[0]
+        ).first()
+
+        if not component or not component.current_warehouse:
+            raise HTTPException(status_code=404, detail="Component or warehouse not found.")
+
+        district_id = component.current_warehouse.district_id
+
+      
+        deo = db.query(User).filter(
+            User.district_id == district_id,
+            User.role.has(name='DEO') 
+        ).first()
+
+        if not deo:
+            raise HTTPException(status_code=404, detail="DEO not found in the district.")
+
+    
         components = db.query(EVMComponent).filter(
             EVMComponent.serial_number.in_(serial_numbers)
         ).all()
 
-        for component in components:
-            component.is_sec_approved = True
+        for comp in components:
+            comp.is_sec_approved = True
+            comp.current_user_id=deo.id
 
         db.commit()
 
         return Response(status_code=200)
 
+
+
+
 def approval_queue_sec():
     with Database.get_session() as db:
-        pending_components = db.query(EVMComponent).filter(
+     
+        pending_components = db.query(EVMComponent).options(
+            joinedload(EVMComponent.current_warehouse).joinedload(Warehouse.district)
+        ).filter(
             EVMComponent.is_sec_approved == False,
             EVMComponent.component_type.notin_([
                 EVMComponentType.DMM_SEAL,
                 EVMComponentType.PINK_PAPER_SEAL
-            ])).all()
-        return pending_components
+            ])
+        ).all()
+
+      
+        grouped = defaultdict(list)
+
+        for comp in pending_components:
+            warehouse = comp.current_warehouse
+            district = warehouse.district if warehouse else None
+            if not district:
+                continue 
+
+            grouped[district.name].append({
+                "component_type": comp.component_type.value,
+                "serial_number": comp.serial_number
+            })
+
+     
+        result = []
+        for district_name, comps in grouped.items():
+            result.append({
+                "district": district_name,
+                "components": comps
+            })
+
+        return result
 
 def view_dmm(user_id: int):
     with Database.get_session() as session:
@@ -436,3 +524,4 @@ def view_dmm(user_id: int):
                 "status": component.status
             } for component in components
         ]
+ 
