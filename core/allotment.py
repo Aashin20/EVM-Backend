@@ -15,6 +15,7 @@ from fastapi import Response
 import traceback
 from fastapi.responses import FileResponse
 from core.create_allotment import AllotmentModel
+from sqlalchemy.orm import aliased
 
 class AllotmentResponse(BaseModel):
     id: int
@@ -205,39 +206,52 @@ def approve_allotment(allotment_id: int, approver_id: int):
             allotment.approved_at = datetime.now(ZoneInfo("Asia/Kolkata"))
 
         updated_component_ids = []
-        
+
+        # List of allotment types where warehouse should NOT be updated
+        skip_warehouse_update_types = {
+            AllotmentType.BO_TO_DEO,
+            AllotmentType.CERO_TO_DEO,
+            AllotmentType.MERO_TO_DEO,
+            AllotmentType.ERO_TO_DEO,
+        }
+
         for item in allotment.items:
             component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             if not component:
                 continue
 
-        
             component.current_user_id = allotment.to_user_id
-            component.current_warehouse_id = approver.warehouse_id
-            updated_component_ids.append(component.id)
-            if component.status == "FLC_Passed/Temp" :
-                component.status="FLC_Passed"
-            elif component.status == "FLC_Pending/Pending":
-                component.status="FLC_Pending"
-            elif component.status=="FLC_Passed/Pending":
-                component.status="FLC_Passed"
 
-            # If the component is part of a pairing, update all in the pair
+            if allotment.allotment_type not in skip_warehouse_update_types:
+                component.current_warehouse_id = approver.warehouse_id
+
+            updated_component_ids.append(component.id)
+
+            if component.status == "FLC_Passed/Temp":
+                component.status = "FLC_Passed"
+            elif component.status == "FLC_Pending/Pending":
+                component.status = "FLC_Pending"
+            elif component.status == "FLC_Passed/Pending":
+                component.status = "FLC_Passed"
+
+            # Update all components in the pairing if any
             if component.pairing_id:
                 paired_components = db.query(EVMComponent).filter(
                     EVMComponent.pairing_id == component.pairing_id
                 ).all()
                 for paired in paired_components:
                     paired.current_user_id = allotment.to_user_id
-                    paired.current_warehouse_id = approver.warehouse_id
+                    if allotment.allotment_type not in skip_warehouse_update_types:
+                        paired.current_warehouse_id = approver.warehouse_id
                     if paired.id not in updated_component_ids:
                         updated_component_ids.append(paired.id)
-        
+
         db.commit()
         db.refresh(allotment)
 
         # CREATE LOGS - Add corresponding entries to logs tables
-        # 1. Create AllotmentLogs entry (approved state)
+
+        # 1. Allotment log
         allotment_log = AllotmentLogs(
             allotment_type=allotment.allotment_type,
             from_user_id=allotment.from_user_id,
@@ -254,11 +268,11 @@ def approve_allotment(allotment_id: int, approver_id: int):
         db.commit()
         db.refresh(allotment_log)
 
-        # 2. Create EVMComponentLogs entries for all updated components
+        # 2. Component logs
         component_log_ids = []
         for comp_id in updated_component_ids:
             component = db.query(EVMComponent).filter(EVMComponent.id == comp_id).first()
-            
+
             comp_log = EVMComponentLogs(
                 serial_number=component.serial_number,
                 component_type=component.component_type,
@@ -275,17 +289,16 @@ def approve_allotment(allotment_id: int, approver_id: int):
             db.refresh(comp_log)
             component_log_ids.append(comp_log.id)
 
-        # 3. Create AllotmentItemLogs entries (only for originally allotted items)
+        # 3. Allotment item logs
         for i, item in enumerate(allotment.items):
-            # Find the corresponding component log
             original_component = db.query(EVMComponent).filter(EVMComponent.id == item.evm_component_id).first()
             matching_log_id = None
-            
+
             for j, comp_id in enumerate(updated_component_ids):
                 if comp_id == item.evm_component_id:
                     matching_log_id = component_log_ids[j]
                     break
-            
+
             if matching_log_id:
                 db.add(AllotmentItemLogs(
                     allotment_id=allotment_log.id,
@@ -294,7 +307,6 @@ def approve_allotment(allotment_id: int, approver_id: int):
                 ))
 
         db.commit()
-
         return Response(status_code=200)
 
 def approval_queue(user_id: int):
@@ -551,20 +563,3 @@ def view_temporary(user_id: int):
 
         return result
 
-
-def view_all_allotments_deo(district_id: int): #Used in dashboard to display all allotments in a district
-    with Database.get_session() as db:
-        allotments = db.query(Allotment).join(Allotment.from_local_body).filter(
-            LocalBody.district_id == district_id
-        ).options(
-            joinedload(Allotment.from_local_body),
-            joinedload(Allotment.to_local_body),
-        ).all()
-
-        return [{
-                    "id": a.id,
-                    "from_local_body": a.from_local_body.name, 
-                    "to_local_body": a.to_local_body.name, 
-                    "status": a.status,
-                    "created_at": a.created_at.isoformat(),
-                } for a in allotments]
