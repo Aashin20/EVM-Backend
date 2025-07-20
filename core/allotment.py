@@ -621,4 +621,29 @@ def view_all_allotments_sec():  # For SEC: View all allotments across all distri
                 "created_at": a.created_at.isoformat(), 
             }) 
         return result
+    
+def view_allotment_items(allotment_id: int):
+    with Database.get_session() as db:
+        allotment_exists = db.query(AllotmentLogs.id).filter(AllotmentLogs.id == allotment_id).first()
+        if not allotment_exists:
+            raise HTTPException(status_code=404, detail="Allotment not found.")
+
   
+        allowed_types = (EVMComponentType.CU, EVMComponentType.BU, EVMComponentType.DMM)
+
+
+        items = (
+            db.query(EVMComponentLogs.serial_number, EVMComponentLogs.component_type)
+            .join(AllotmentItemLogs, AllotmentItemLogs.evm_component_id == EVMComponentLogs.id)
+            .filter(
+                AllotmentItemLogs.allotment_id == allotment_id,
+                EVMComponentLogs.component_type.in_(allowed_types)
+            )
+            .all()
+        )
+
+
+        return [
+            {"serial_number": serial, "component_type": ctype}
+            for serial, ctype in items
+        ]
