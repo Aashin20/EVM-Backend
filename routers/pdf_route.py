@@ -46,3 +46,7 @@ async def get_flc_template(component_type:str):
 @router.get("/annexure-2")
 async def get_attendance_reg():
     return FileResponse(path="templates/Attendance.pdf",media_type="application/pdf",filename="Annexure-II")
+
+@router.get("/annexure-4")
+async def get_attendance_reg():
+    return FileResponse(path="templates/Physical_Verification.pdf",media_type="application/pdf",filename="Annexure-IV")
