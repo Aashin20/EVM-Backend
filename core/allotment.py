@@ -596,3 +596,29 @@ def view_all_allotments_deo(district_id: str): # For DEO: View all allotments in
             "created_at": a.created_at.isoformat(), 
         } for a in allotments] 
  
+ 
+     
+def view_all_allotments_sec():  # For SEC: View all allotments across all districts 
+    with Database.get_session() as db: 
+        allotments = db.query(Allotment).options( 
+            joinedload(Allotment.from_local_body).joinedload(LocalBody.district), 
+            joinedload(Allotment.to_local_body).joinedload(LocalBody.district),
+            joinedload(Allotment.from_user),
+            joinedload(Allotment.to_user)
+        ).all() 
+ 
+        result = [] 
+        for a in allotments: 
+            result.append({ 
+                "id": a.id, 
+                "from_user": a.from_user.username if a.from_user else None,
+                "to_user": a.to_user.username if a.to_user else None,
+                "from_local_body": a.from_local_body.name if a.from_local_body else None, 
+                "from_district": a.from_local_body.district.name if a.from_local_body and a.from_local_body.district else None, 
+                "to_local_body": a.to_local_body.name if a.to_local_body else None, 
+                "to_district": a.to_local_body.district.name if a.to_local_body and a.to_local_body.district else None, 
+                "status": a.status, 
+                "created_at": a.created_at.isoformat(), 
+            }) 
+        return result
+  
