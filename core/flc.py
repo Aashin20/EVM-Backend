@@ -53,6 +53,7 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int):
             # 2. Validate all components exist
             missing = [s for s in all_serials if s not in comp_map]
             if missing:
+                print(missing)
                 raise HTTPException(status_code=404, detail=f"Components not found: {missing}")
             
             # 3. Process each record
