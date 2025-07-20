@@ -524,4 +524,73 @@ def view_dmm(user_id: int):
                 "status": component.status
             } for component in components
         ]
- 
+    
+
+def warehouse_reentry(warehouse_updates: List[Dict[str, Any]], user_id: int):
+    
+    with Database.get_session() as db:
+        try:
+            total_updated = 0
+            
+            # Process each warehouse update group
+            for update_group in warehouse_updates:
+                warehouse_id = update_group.get("warehouse")
+                serial_numbers = update_group.get("serial", [])
+                
+                if not serial_numbers:
+                    continue
+                
+                # Check if all serial numbers exist
+                existing_components = db.query(EVMComponent).filter(
+                    EVMComponent.serial_number.in_(serial_numbers)
+                ).all()
+                
+                existing_serials = {comp.serial_number for comp in existing_components}
+                missing_serials = set(serial_numbers) - existing_serials
+                
+                if missing_serials:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Serial numbers not found: {list(missing_serials)}"
+                    )
+                
+                # Create audit log entries for each component before updating
+                for component in existing_components:
+                    audit_entry = EVMComponentLogs(
+                        serial_number=component.serial_number,
+                        component_type=component.component_type,
+                        status=component.status,
+                        is_verified=component.is_verified,
+                        dom=component.dom,
+                        box_no=component.box_no,
+                        current_user_id=user_id,
+                        current_warehouse_id=warehouse_id,
+                        pairing_id=component.pairing_id
+                    )
+                    db.add(audit_entry)
+                
+                # Update warehouse for all components in this group
+                updated_count = db.query(EVMComponent).filter(
+                    EVMComponent.serial_number.in_(serial_numbers)
+                ).update(
+                    {EVMComponent.current_warehouse_id: warehouse_id},
+                    synchronize_session=False
+                )
+                
+                total_updated += updated_count
+            
+            # Commit all changes
+            db.commit()
+            
+            return {"message": "Warehouse updated successfully", "components_updated": total_updated}
+
+            
+        except HTTPException:
+            db.rollback()
+            raise
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update EVM warehouse: {str(e)}"
+            )
