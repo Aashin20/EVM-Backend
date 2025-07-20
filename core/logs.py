@@ -7,6 +7,8 @@ from models.users import User, LocalBody, District, Warehouse
 from models.evm import PollingStation
 
 
+
+
 def get_paginated_response(query, page: int, page_size: int):
     total = query.count()
     items = query.offset((page - 1) * page_size).limit(page_size).all()
@@ -74,6 +76,49 @@ def get_polling_station_name(db, polling_station_id: int):
     return ps.name if ps else None
 
 
+def get_all_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
+    with Database.get_session() as db:
+        all_logs = []
+        
+        log_configs = [
+            ("allotment", AllotmentLogs, "created_at"),
+            ("component", EVMComponentLogs, "created_on"),
+            ("pairing", PairingRecordLogs, "created_at"),
+            ("flc_record", FLCRecordLogs, "flc_date"),
+            ("flc_bu", FLCBallotUnitLogs, "flc_date")
+        ]
+        
+        for log_type, model, timestamp_field in log_configs:
+            query = db.query(model)
+            query = apply_date_filter(query, model, start_date, end_date)
+            
+            for log in query.all():
+                created_time = getattr(log, timestamp_field, None) or datetime.min
+                all_logs.append({
+                    "type": log_type,
+                    "id": log.id,
+                    "created_at": created_time,
+                    "data": log
+                })
+        
+        # Sort newest first
+        all_logs.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        # Pagination
+        total = len(all_logs)
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_logs = all_logs[start:end]
+        
+        return {
+            "items": [{"type": log["type"], "id": log["id"], "created_at": log["created_at"]} for log in paginated_logs],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": ceil(total / page_size)
+        }
+
+
 def get_allotment_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
     with Database.get_session() as db:
         query = db.query(AllotmentLogs)
@@ -84,6 +129,7 @@ def get_allotment_logs_data(page: int, page_size: int, start_date: Optional[date
         for log in result["items"]:
             formatted_items.append({
                 "id": log.id,
+                
                 "allotment_type": log.allotment_type.value if log.allotment_type else None,
                 "from_user": get_user_name(db, log.from_user_id),
                 "to_user": get_user_name(db, log.to_user_id),
@@ -222,46 +268,3 @@ def get_flc_bu_logs_data(page: int, page_size: int, start_date: Optional[date], 
         
         result["items"] = formatted_items
         return result
-
-
-def get_all_logs_data(page: int, page_size: int, start_date: Optional[date], end_date: Optional[date]):
-    with Database.get_session() as db:
-        all_logs = []
-        
-        # Get all log types with their respective timestamp fields
-        log_configs = [
-            ("allotment", AllotmentLogs, "created_at"),
-            ("component", EVMComponentLogs, "created_on"),
-            ("pairing", PairingRecordLogs, "created_at"),
-            ("flc_record", FLCRecordLogs, "flc_date"),
-            ("flc_bu", FLCBallotUnitLogs, "flc_date")
-        ]
-        
-        for log_type, model, timestamp_field in log_configs:
-            query = db.query(model)
-            query = apply_date_filter(query, model, start_date, end_date)
-            
-            for log in query.all():
-                all_logs.append({
-                    "type": log_type,
-                    "id": log.id,
-                    "created_at": getattr(log, timestamp_field, None),
-                    "data": log
-                })
-        
-        # Sort by timestamp
-        all_logs.sort(key=lambda x: x['created_at'] or datetime.min, reverse=True)
-        
-        # Apply pagination
-        total = len(all_logs)
-        start = (page - 1) * page_size
-        end = start + page_size
-        paginated_logs = all_logs[start:end]
-        
-        return {
-            "items": [{"type": log["type"], "id": log["id"], "created_at": log["created_at"]} for log in paginated_logs],
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "total_pages": ceil(total / page_size)
-        }
