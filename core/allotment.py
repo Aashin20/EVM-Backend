@@ -563,3 +563,36 @@ def view_temporary(user_id: int):
 
         return result
 
+
+
+def view_all_allotments_deo(district_id: str): # For DEO: View all allotments in districts 
+    with Database.get_session() as db: 
+        from_lb = aliased(LocalBody) 
+        to_lb = aliased(LocalBody) 
+         
+        allotments = db.query(Allotment).outerjoin( 
+            from_lb, Allotment.from_local_body_id == from_lb.id 
+        ).outerjoin( 
+            to_lb, Allotment.to_local_body_id == to_lb.id 
+        ).filter( 
+            (Allotment.from_district_id == district_id) | 
+            (Allotment.to_district_id == district_id) | 
+            (from_lb.district_id == district_id) | 
+            (to_lb.district_id == district_id) 
+        ).options( 
+            joinedload(Allotment.from_local_body), 
+            joinedload(Allotment.to_local_body),
+            joinedload(Allotment.from_user),
+            joinedload(Allotment.to_user)
+        ).all() 
+         
+        return [{ 
+            "id": a.id, 
+            "from_user": a.from_user.username if a.from_user else None,
+            "to_user": a.to_user.username if a.to_user else None,
+            "from_local_body": a.from_local_body.name if a.from_local_body else None, 
+            "to_local_body": a.to_local_body.name if a.to_local_body else None, 
+            "status": a.status, 
+            "created_at": a.created_at.isoformat(), 
+        } for a in allotments] 
+ 
