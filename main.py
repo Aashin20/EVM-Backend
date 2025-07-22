@@ -10,18 +10,25 @@ from routers import (auth_route,comp_route,allot_route,
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+from utils.rate_limiter import user_key_func
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+ 
 
-# Create logs directory if not exists
+limiter = Limiter(key_func=user_key_func)
+
+
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
-# Configure root logger
+
 logging.basicConfig(
-    level=logging.INFO,  # Change to DEBUG for more verbosity
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         RotatingFileHandler("logs/app.log", maxBytes=5*1024*1024, backupCount=5),
-        logging.StreamHandler()  # Also log to console
+        logging.StreamHandler()  
     ]
 )
 
@@ -41,11 +48,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=[
+       "*"
+    ],
+    allow_credentials=True, 
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
