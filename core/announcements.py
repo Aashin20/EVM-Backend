@@ -22,7 +22,7 @@ def view_announcements(user_id: int,role: str):
                 (Announcements.to_user == "All")
             ).all()
             if not announcements:
-                raise HTTPException(status_code=404, detail="No announcements found")
+                raise HTTPException(status_code=200, detail="No announcements found")
             return announcements
     except HTTPException:
         raise  
