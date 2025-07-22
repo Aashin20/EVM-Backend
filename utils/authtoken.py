@@ -1,43 +1,117 @@
 from jose import jwt, ExpiredSignatureError, JWTError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+import uuid
+from fastapi import Depends, HTTPException, status, Request, Response
+import logging
+from typing import Dict, Tuple
+from slowapi import Limiter
 
 load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY", SECRET_KEY + "_refresh")
 ALGORITHM = "HS256"
+ACCESS_COOKIE_NAME = "access_token"
+REFRESH_COOKIE_NAME = "refresh_token"
 
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login") 
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
 
-def create_token(details: dict, expiry: int = 30):
-    to_encode = details.copy()
-    expire = datetime.now() + timedelta(minutes=expiry)
-    to_encode.update({"exp": expire})
-    jwt_token = jwt.encode(to_encode, SECRET_KEY, ALGORITHM)
-    return jwt_token
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+active_refresh_tokens = set()
 
-def verify_token(token: str):
+def create_tokens(user_data: dict) -> Tuple[str, str]:
+    now = datetime.now(timezone.utc)
+    access_payload = user_data.copy()
+    access_payload.update({
+        "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "type": "access"
+    })
+    access_token = jwt.encode(access_payload, SECRET_KEY, ALGORITHM)
+    refresh_jti = str(uuid.uuid4())
+    refresh_payload = {
+        "sub": user_data.get("sub"),
+        "user_id": user_data.get("user_id"),
+        "jti": refresh_jti,
+        "exp": now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        "type": "refresh"
+    }
+    refresh_token = jwt.encode(refresh_payload, REFRESH_SECRET_KEY, ALGORITHM)
+    active_refresh_tokens.add(refresh_jti)
+    return access_token, refresh_token
+
+def verify_access_token(token: str) -> dict:
     try:
-        payload = jwt.decode(token, SECRET_KEY, ALGORITHM)
+        payload = jwt.decode(token, SECRET_KEY, [ALGORITHM])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Invalid token type")
         return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    except Exception as e:
-        return {"error": str(e)}
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Access token expired")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid access token")
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
-    payload = verify_token(token)
-    if not payload:
+def verify_refresh_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, REFRESH_SECRET_KEY, [ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        jti = payload.get("jti")
+        if jti not in active_refresh_tokens:
+            raise HTTPException(status_code=401, detail="Refresh token revoked")
+        return payload
+    except ExpiredSignatureError:
+        try:
+            jti = jwt.decode(token, REFRESH_SECRET_KEY, [ALGORITHM], options={"verify_exp": False}).get("jti")
+            active_refresh_tokens.discard(jti)
+        except:
+            pass
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+def revoke_refresh_token(jti: str):
+    active_refresh_tokens.discard(jti)
+
+def get_current_user(request: Request):
+    access_token = request.cookies.get(ACCESS_COOKIE_NAME)
+    if not access_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Authentication required"
         )
-    return payload
+    user = verify_access_token(access_token)
+    request.state.user_id = user["user_id"]
+    return user
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
+    cookie_settings = {
+        "httponly": True,
+        "path": "/",
+        "samesite": "none",
+        "secure": True
+    }
+    if IS_PRODUCTION:
+        cookie_settings["secure"] = True
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        **cookie_settings
+    )
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        **cookie_settings
+    )
+
+def clear_auth_cookies(response: Response):
+    response.delete_cookie(key=ACCESS_COOKIE_NAME, path="/")
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/")
