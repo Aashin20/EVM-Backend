@@ -492,7 +492,8 @@ def approval_queue_sec():
 
             grouped[district.name].append({
                 "component_type": comp.component_type.value,
-                "serial_number": comp.serial_number
+                "serial_number": comp.serial_number,
+                "box_no": comp.box_no
             })
 
      
