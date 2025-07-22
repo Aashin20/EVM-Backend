@@ -8,10 +8,12 @@ from core.create_allotment import create_allotment, AllotmentModel
 from utils.authtoken import get_current_user
 from typing import List,Optional
 import json
+from utils.rate_limiter import limiter
 
 router = APIRouter()
 
 @router.post("/")
+@limiter.limit("10/minute")
 async def allot_evm(
     request: Request,
     pending_id: Optional[int] = Query(None),
@@ -19,13 +21,11 @@ async def allot_evm(
 ):
     content_type = request.headers.get("content-type", "")
     
-    # Handle JSON requests (your current frontend)
     if content_type.startswith("application/json"):
         body = await request.json()
         data = AllotmentModel(**body)
         pdf_bytes = None
-        
-    # Handle multipart form requests (with file upload)
+
     elif content_type.startswith("multipart/form-data"):
         form_data = await request.form()
         
@@ -38,11 +38,11 @@ async def allot_evm(
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON data")
         
-        # Read PDF file if provided
+   
         pdf_bytes = None
         if 'treasury_receipt_pdf' in form_data:
             treasury_receipt_pdf = form_data['treasury_receipt_pdf']
-            if treasury_receipt_pdf.filename:  # Check if file was actually uploaded
+            if treasury_receipt_pdf.filename: 
                 pdf_bytes = await treasury_receipt_pdf.read()
                 print(f"[ENDPOINT] Received treasury receipt PDF: {treasury_receipt_pdf.filename}, size: {len(pdf_bytes)} bytes")
     
