@@ -40,38 +40,6 @@ class PollingStationModel(BaseModel):
     name: str
     local_body_id: str
 
-# def login(data: LoginModel):
-
-#     with Database.get_session() as session:
-#         current = session.query(User).options(
-#             joinedload(User.role),
-#             joinedload(User.level)
-#         ).filter(User.username == data.username).first()
-#         if not current:
-#             return {"error": "User not found"}
-#         if current.is_active is False:
-#             return {"error": "Account deactivated"}
-
-#         password_hash = current.password_hash
-#         verification = bcrypt.checkpw(data.password.encode('utf-8'), password_hash.encode('utf-8'))
-
-#         if not verification:
-#             return {"error": "Invalid password"}
-
-#         token = create_token({"username": current.username, "role": current.role.name,"level": current.level.name, "user_id": current.id})
-
-#         return {"token": token, 
-#                 "role": current.role, 
-#                 "username": current.username,
-#                 "user_id":current.id,
-#                 "district_id": current.district_id if current.district_id else None,
-#                 "district_name": current.district.name if current.district else None,
-#                 "local_body_id": current.local_body_id if current.local_body_id else None,
-#                 "local_body_name": current.local_body.name if current.local_body else None,
-#                 "warehouse_id": current.warehouse_id if current.warehouse_id else None,
-#                 "status" : "success"}
-
-
 
 def register(details: RegisterModel):
     with Database.get_session() as session:
