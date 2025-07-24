@@ -66,7 +66,7 @@ class EVMComponentLogs(Base):
     status = Column(String, default="FLC_Pending")  
     is_verified = Column(Boolean, default=False)
     dom = Column(String, nullable=True)
-    box_no = Column(Integer, nullable=True)
+    box_no = Column(String, nullable=True)
     current_user_id = Column(Integer, ForeignKey('users.id'))
     created_on = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     current_warehouse_id = Column(String, ForeignKey('warehouses.id'), nullable=True)
