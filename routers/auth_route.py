@@ -12,6 +12,7 @@ from models.users import User
 from pydantic import BaseModel, constr
 import bcrypt
 from jose import jwt
+from utils.rate_limiter import limiter
 
 router = APIRouter()
 
@@ -20,7 +21,8 @@ class LoginModel(BaseModel):
     password: constr(min_length=6)
 
 @router.post('/login')
-async def login(response: Response, data: LoginModel):
+@limiter.limit("30/minute")
+async def login(request: Request,response: Response, data: LoginModel):
     try:
         with Database.get_session() as session:
             current = session.query(User).options(
@@ -56,6 +58,7 @@ async def login(response: Response, data: LoginModel):
             return {"role": current.role, 
                  "username": current.username,
                  "user_id":current.id,
+                 "email": current.email,
                  "district_id": current.district_id if current.district_id else None,
                  "district_name": current.district.name if current.district else None,
                  "local_body_id": current.local_body_id if current.local_body_id else None,
@@ -70,8 +73,9 @@ async def login(response: Response, data: LoginModel):
         raise HTTPException(status_code=500, detail="Login failed")
 
 @router.post('/refresh')
+@limiter.limit("30/minute")
 async def refresh_token(request: Request, response: Response):
-    """Refresh access token using refresh token"""
+
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     
     if not refresh_token:
@@ -120,8 +124,8 @@ async def refresh_token(request: Request, response: Response):
         raise HTTPException(status_code=500, detail="Token refresh failed")
     
 @router.post('/logout')
+@limiter.limit("30/minute")
 async def logout(request: Request, response: Response, current_user: dict = Depends(get_current_user)):
-    """Logout and revoke refresh token"""
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     
     if refresh_token:
@@ -139,8 +143,9 @@ async def logout(request: Request, response: Response, current_user: dict = Depe
     return {"message": "Logged out"}
 
 @router.post('/logout-all')
-async def logout_all_devices(current_user: dict = Depends(get_current_user), response: Response = None):
-    """Logout from all devices by revoking all refresh tokens for user"""
+@limiter.limit("30/minute")
+async def logout_all_devices(request: Request,current_user: dict = Depends(get_current_user), response: Response = None):
+
     user_id = current_user.get("user_id")
     
    
