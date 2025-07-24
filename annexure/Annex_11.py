@@ -7,7 +7,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
-
+import uuid
 
 class CUReturn(BaseModel):
     cu_no: str
@@ -16,8 +16,10 @@ class CUReturn(BaseModel):
     dmm_no_treasury: str
 
 
-def Return_RO_BO(details: List[CUReturn], RO:str,alloted_to: str, filename="Annexure_11.pdf"):
+def Return_RO_BO(details: List[CUReturn], RO:str,alloted_to: str):
     # Create document
+    filename = f"Annexure_11_{uuid.uuid4().hex[:8]}.pdf"
+    
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
                           topMargin=0.75*inch, bottomMargin=0.75*inch)
