@@ -5,6 +5,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer, Pag
 from reportlab.platypus.flowables import KeepTogether
 from pydantic import BaseModel
 from typing import List
+import uuid
 
 class EVMData(BaseModel):
     evm_no: str
@@ -12,14 +13,9 @@ class EVMData(BaseModel):
     dmm_no: str
     bu_nos: List[str]
 
-def pairing_sticker(data_list: List[EVMData], filename: str = "evm_tables.pdf"):
-    """
-    Create a PDF with EVM tables optimized to fit maximum per page
-    
-    Args:
-        data_list: List of EVMData objects
-        filename: Output PDF filename
-    """
+def pairing_sticker(data_list: List[EVMData]):
+
+    filename = f"pairing_sticker_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                            topMargin=0.3*inch, bottomMargin=0.3*inch,
                            leftMargin=0.3*inch, rightMargin=0.3*inch)
