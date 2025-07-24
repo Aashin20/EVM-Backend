@@ -7,21 +7,22 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
-
+import uuid
 
 class CUDetail(BaseModel):
     serial_number: str
-    box_no: int
+    box_no: str
     dmm_no: str
     warehouse: str
 
 class BUDetail(BaseModel):
     serial_number: str
-    box_no: int
+    box_no: str
     warehouse: str
 
-def Deo_BO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, filename="Annexure_5.pdf"):
+def Deo_BO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str):
     # Create document
+    filename = f"Annexure_5_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
                           topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -199,8 +200,9 @@ def Deo_BO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, filen
 
 
 
-def Deo_BO_BU(details: List[BUDetail], alloted_to: str, alloted_from: str, filename="Annexure_5.pdf"):
+def Deo_BO_BU(details: List[BUDetail], alloted_to: str, alloted_from: str):
     # Create document
+    filename = f"Annexure_5_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
                           topMargin=0.75*inch, bottomMargin=0.75*inch)
