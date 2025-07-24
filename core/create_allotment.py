@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_
 from models.evm import PairingRecord, EVMComponentType
-from fastapi import Response
+from fastapi import BackgroundTasks
 import traceback
 from fastapi.responses import FileResponse
 from annexure.Annex_5 import CUDetail,Deo_BO_CU,BUDetail,Deo_BO_BU
@@ -21,7 +21,7 @@ from annexure.Annex_11 import Return_RO_BO
 from annexure.Annex_12 import BO_DEO_Return
 from datetime import date
 import zlib
-
+from utils.delete_file import remove_file
 
 class AllotmentModel(BaseModel):
     allotment_type: AllotmentType
@@ -36,7 +36,7 @@ class AllotmentModel(BaseModel):
     to_district_id: Optional[int] = None
     original_allotment_id: Optional[int] = None
     reject_reason: Optional[str] = None
-    box_nos: Optional[List[int]] = None
+    box_nos: Optional[List[str]] = None
 
 class CUReturn(BaseModel):
     cu_no: str
@@ -52,7 +52,7 @@ class ComponentDetail(BaseModel):
 
 
 
-def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_id: Optional[int], treasury_receipt_pdf: Optional[bytes] = None):  
+def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_id: Optional[int], treasury_receipt_pdf: Optional[bytes] = None,background_tasks: BackgroundTasks = None):  
     print(f"[ALLOTMENT] Starting allotment creation for user {from_user_id}")
     with Database.get_session() as db:
         try:
@@ -234,6 +234,7 @@ def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_i
         
             if pdf_filename:
                 print(f"[ALLOTMENT] Returning PDF file: {pdf_filename}")
+                background_tasks.add_task(remove_file, pdf_filename)
                 return FileResponse(
                     path=pdf_filename,
                     filename=pdf_filename,
