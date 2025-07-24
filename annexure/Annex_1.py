@@ -6,12 +6,13 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.units import inch
 from typing import List,Dict
 from datetime import datetime
+import uuid
 
 
 
-def CU_1(components: List, component_type: str, warehouse_names: Dict[int, str],alloted_to:str, order_no:str,filename="Annexure_1.pdf"):
+def CU_1(components: List, component_type: str, warehouse_names: Dict[int, str],alloted_to:str, order_no:str):
     # Create document
-
+    filename = f"Annexure_1_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
                           topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -190,9 +191,9 @@ def CU_1(components: List, component_type: str, warehouse_names: Dict[int, str],
     doc.build(elements)
     return filename
 
-def DMM_1(components: List, component_type: str,alloted_to:str,order_no:str, filename="Annexure_1.pdf"):
+def DMM_1(components: List, component_type: str,alloted_to:str,order_no:str):
     # Create document
-
+    filename = f"Annexure_1_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
                           topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -265,7 +266,7 @@ def DMM_1(components: List, component_type: str,alloted_to:str,order_no:str, fil
     # Current date
     current_date = datetime.now().strftime("%d-%m-%Y")
     
-    # Horizontal header info - FIXED: Added 4th column width
+
     header_info = [
         [Paragraph("SEC's Allotment Order No.", header_label_style), 
          Paragraph("Date", header_label_style), 
@@ -277,7 +278,7 @@ def DMM_1(components: List, component_type: str,alloted_to:str,order_no:str, fil
          Paragraph(alloted_to, header_value_style)]
     ]
     
-    header_table = Table(header_info, colWidths=[120, 120, 120, 120])  # FIXED: Added 4th width
+    header_table = Table(header_info, colWidths=[120, 120, 120, 120])  
     header_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
