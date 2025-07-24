@@ -7,7 +7,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
-
+import uuid
 
 class CUDetail(BaseModel):
     comp_no: str
@@ -16,7 +16,9 @@ class CUDetail(BaseModel):
     comp_warehouse: Optional[str] = None
     
 
-def BO_DEO_Return(details: List[CUDetail], order_no: str, alloted_from: str, alloted_to: str, filename="Annexure_12.pdf"):
+def BO_DEO_Return(details: List[CUDetail], order_no: str, alloted_from: str, alloted_to: str):
+
+    filename = f"Annexure_12_{uuid.uuid4().hex[:8]}.pdf"
   
     doc = SimpleDocTemplate(filename, pagesize=landscape(A4), 
                           leftMargin=0.5*inch, rightMargin=0.5*inch, 
