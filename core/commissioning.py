@@ -5,7 +5,7 @@ import tempfile
 import os
 import logging
 import traceback
-from fastapi import HTTPException
+from fastapi import HTTPException,BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.exc import SQLAlchemyError
 from core.db import Database
@@ -18,6 +18,9 @@ from models.logs import(
     PairingRecordLogs,EVMComponentLogs
 )
 from annexure.Annex_8 import EVMDetail,RO_PRO
+import uuid
+from utils.delete_file import remove_file
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -33,10 +36,9 @@ class ReserveEVMCommissioningModel(BaseModel):
     bu_serial: List[str]
     bu_pink_paper_seals: List[str]
 
-def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: int):
+def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: int,background_tasks: BackgroundTasks):
     """
-    Commission EVMs with all-or-nothing approach.
-    Either all EVMs are commissioned successfully or none are.
+    EVM Commissioning fn called by RO
     """
     if not commissioning_list:
         raise HTTPException(status_code=400, detail="No commissioning data provided")
@@ -364,7 +366,7 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                     # Create EVM detail
                     evm_detail = EVMDetail(
                         evm_no=pairing.evm_id,
-                        constituency_ward_no=polling_station.constituency_id,
+                        constituency_ward_no="1",
                         polling_station_no=str(polling_station.id),
                         control_unit_no=cu.serial_number,
                         dmm_no=dmm.serial_number if dmm else "",
@@ -375,8 +377,8 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                     pdf_details.append(evm_detail)
                 
                 # Generate PDF
-                filename = f"EVM_Commission_Report_{current_time.strftime('%Y%m%d_%H%M%S')}.pdf"
                 temp_dir = tempfile.gettempdir()
+                filename = f"EVM_Commissioning_{uuid.uuid4()}.pdf"
                 pdf_path = os.path.join(temp_dir, filename)
                 
                 # Get user details for PDF header
@@ -395,7 +397,9 @@ def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: 
                 )
                 
                 logger.info(f"PDF generated successfully: {filename}")
-                
+
+                background_tasks.add_task(remove_file, filename)
+
                 return FileResponse(
                     path=pdf_path,
                     filename=filename,
