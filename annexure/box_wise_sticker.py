@@ -90,12 +90,14 @@ def Box_wise_sticker(boxes_data: List, filename="Box_wise_sticker.pdf"):
                 return "Invalid Date"
         
         # Get FLC date from first component (assuming all components in box have same FLC date)
-        flc_date = format_flc_date(box_data["components"][0]["flc_date"]) if box_data["components"] else "Not Available"
+        flc_date = box_data.components[0].flc_date if box_data.components else "Not Available"
+
+
         
         # Simplified header info - Box No. and FLC Date
         header_info = [
             [Paragraph("Box No.", header_label_style), Paragraph("FLC Date", header_label_style)],
-            [Paragraph(str(box_data["box_no"]), header_value_style), Paragraph(flc_date, header_value_style)]
+            [Paragraph(str(box_data.box_no), header_value_style), Paragraph(flc_date, header_value_style)]
         ]
         
         header_table = Table(header_info, colWidths=[160, 160])
@@ -119,13 +121,14 @@ def Box_wise_sticker(boxes_data: List, filename="Box_wise_sticker.pdf"):
         comp_data = [headers, index_headers]
         
         # Add component rows
-        components = box_data["components"]
+        components = box_data.components
         for i, comp in enumerate(components):
             comp_data.append([
                 str(i+1), 
-                comp["serial_no"],
-                comp["status"]
+                comp.serial_no,
+                comp.status
             ])
+
         
         # Add Total Count row
         comp_data.append(["Total Count", str(len(components)), ""])
