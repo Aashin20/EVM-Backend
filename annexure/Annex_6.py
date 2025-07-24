@@ -7,23 +7,24 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
-
+import uuid
 
 class BUDetail(BaseModel):
     serial_number: str
-    box_no: int
+    box_no: str
     warehouse: str
 
 
 class CUDetail(BaseModel):
     serial_number: str
-    box_no: int
+    box_no: str
     dmm_no: str
     warehouse: str
 
 
-def BO_RO_BU(details: List[BUDetail], alloted_to: str, alloted_from: str, order_no:str,filename="Annexure_6.pdf"):
+def BO_RO_BU(details: List[BUDetail], alloted_to: str, alloted_from: str, order_no:str):
     # Create document
+    filename = f"Annexure_6_BU_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
                           topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -197,8 +198,9 @@ def BO_RO_BU(details: List[BUDetail], alloted_to: str, alloted_from: str, order_
     doc.build(elements)
     return filename
 
-def BO_RO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, order_no: str,filename="Annexure_6.pdf"):
+def BO_RO_CU(details: List[CUDetail], alloted_to: str, alloted_from: str, order_no: str):
     # Create document
+    filename = f"Annexure_6_CU_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
                           topMargin=0.75*inch, bottomMargin=0.75*inch)
