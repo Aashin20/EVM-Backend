@@ -7,7 +7,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
-
+import uuid
 
 class EVMPair(BaseModel):
     cu_no: str
@@ -151,8 +151,10 @@ def create_page_content(evm_pair: EVMPair, allotment_order_no: str, styles: dict
     return elements
 
 
-def Form_N35(evm_pairs: List[EVMPair], allotment_order_no: str, filename="Form_N35.pdf"):
+def Form_N35(evm_pairs: List[EVMPair], allotment_order_no: str):
     
+    filename = f"Form_N35_{uuid.uuid4().hex[:8]}.pdf"
+
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                           leftMargin=0.75*inch, rightMargin=0.75*inch, 
                           topMargin=0.75*inch, bottomMargin=0.75*inch)
