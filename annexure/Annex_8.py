@@ -7,6 +7,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
+import uuid
 
 class EVMDetail(BaseModel):
     evm_no: str
@@ -17,8 +18,8 @@ class EVMDetail(BaseModel):
     bu_nos: List[str]
     bu_pink_paper_seal_nos: List[str]
 
-def RO_PRO(details: List[EVMDetail], district: str,local_body:str,RO: str,strongroom:str, filename="Annexure_8.pdf"):
-
+def RO_PRO(details: List[EVMDetail], district: str,local_body:str,RO: str,strongroom:str,filename:str):
+    
     doc = SimpleDocTemplate(filename, pagesize=landscape(A4), 
                           leftMargin=0.5*inch, rightMargin=0.5*inch, 
                           topMargin=0.5*inch, bottomMargin=0.5*inch)
