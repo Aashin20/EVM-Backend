@@ -61,33 +61,32 @@ class EVMComponent(Base):
     is_allocated = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     dom = Column(String, nullable=True)
-    box_no = Column(Integer, nullable=True)
+    box_no = Column(String, ForeignKey('box_numbers.box_no'), nullable=True)
+
     current_user_id = Column(Integer, ForeignKey('users.id'))
     current_warehouse_id = Column(String, ForeignKey('warehouses.id'), nullable=True)
     pairing_id = Column(Integer, ForeignKey('pairings.id', ondelete="CASCADE"), nullable=True)
     is_sec_approved = Column(Boolean, default=False)
     last_received_from_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     date_of_receipt = Column(Date, nullable=True)
-    last_received_from = relationship("User", foreign_keys=[last_received_from_id])
 
+    last_received_from = relationship("User", foreign_keys=[last_received_from_id])
     pairing = relationship("PairingRecord", back_populates="components")
-    
-    current_user = relationship("User",foreign_keys=[current_user_id])
+    current_user = relationship("User", foreign_keys=[current_user_id])
     current_warehouse = relationship("Warehouse")
+    box = relationship("BoxNumber", back_populates="evm_components")
 
 class PairingRecord(Base):
     __tablename__ = 'pairings'
 
     id = Column(Integer, primary_key=True)
-    evm_id = Column(String(50), unique=True, nullable=True,default=None)
+    evm_id = Column(String(50), unique=True, nullable=True, default=None)
     polling_station_id = Column(Integer, ForeignKey('polling_stations.id'), nullable=True)
-
     created_by_id = Column(Integer, ForeignKey('users.id'))
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
-    
     completed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     completed_at = Column(DateTime(timezone=True), nullable=True)
-     
+
     polling_station = relationship("PollingStation", back_populates="pairing_records")
     created_by = relationship("User", foreign_keys=[created_by_id])
     completed_by = relationship("User", foreign_keys=[completed_by_id])
@@ -214,9 +213,7 @@ class FLCRecord(Base):
     dmm_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)         
     pink_paper_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False) 
 
-
-    box_no = Column(String)
-   
+    box_no = Column(String, ForeignKey("box_numbers.box_no"), nullable=True)
 
     passed = Column(Boolean, default=False)
     remarks = Column(String, nullable=True)
@@ -226,23 +223,25 @@ class FLCRecord(Base):
 
     cu = relationship("EVMComponent", foreign_keys=[cu_id])
     dmm = relationship("EVMComponent", foreign_keys=[dmm_id])
-    flc_by = relationship("User")
     dmm_seal = relationship("EVMComponent", foreign_keys=[dmm_seal_id])            
     pink_paper_seal = relationship("EVMComponent", foreign_keys=[pink_paper_seal_id])
-
+    flc_by = relationship("User")
+    box = relationship("BoxNumber", back_populates="flc_records")
 
 class FLCBallotUnit(Base):
     __tablename__ = 'flc_bu'
 
     id = Column(Integer, primary_key=True)
     bu_id = Column(Integer, ForeignKey('evm_components.id'))
-    box_no = Column(String)
+    box_no = Column(String, ForeignKey("box_numbers.box_no"), nullable=True)
     passed = Column(Boolean, default=False)
     remarks = Column(String)
     flc_by_id = Column(Integer, ForeignKey('users.id'))
     flc_date = Column(DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
-    flc_by = relationship("User")
+
     bu = relationship("EVMComponent")
+    flc_by = relationship("User")
+    box = relationship("BoxNumber", back_populates="flc_bu_units")
 
 
 class FLCDMMUnit(Base):
@@ -314,3 +313,14 @@ class TreasuryReceipt(Base):
 
     allotment = relationship("Allotment", backref="treasury_receipts")
     uploaded_by = relationship("User")
+
+class BoxNumber(Base):
+    __tablename__ = "box_numbers"
+
+    box_no = Column(String, primary_key=True)
+    num_components = Column(Integer, default=0)
+
+    evm_components = relationship("EVMComponent", back_populates="box", cascade="all, delete-orphan")
+    flc_records = relationship("FLCRecord", back_populates="box", cascade="all, delete-orphan")
+    flc_bu_units = relationship("FLCBallotUnit", back_populates="box", cascade="all, delete-orphan")
+
