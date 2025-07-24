@@ -69,3 +69,10 @@ async def get_appendix_1(districtid: int,background_tasks: BackgroundTasks):
         return generate_daily_flc_report(districtid,background_tasks)
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate Appendix 1"}
+    
+@router.get("/appendix-2/{districtid}")
+async def get_appendix_2(districtid: int,background_tasks: BackgroundTasks):
+    try:
+        return generate_flc_appendix2(districtid,background_tasks)
+    except Exception as e:
+        return {"error": str(e), "message": "Failed to generate Appendix 2"}
