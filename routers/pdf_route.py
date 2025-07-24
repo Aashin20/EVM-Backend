@@ -62,3 +62,10 @@ async def get_attendance_reg(current_user: dict=Depends(get_current_user)):
 @router.get("/annexure-4")
 async def get_attendance_reg(current_user: dict=Depends(get_current_user)):
     return FileResponse(path="templates/Physical_Verification.pdf",media_type="application/pdf",filename="Annexure-IV")
+
+@router.get("/appendix-1/{districtid}")
+async def get_appendix_1(districtid: int,background_tasks: BackgroundTasks):
+    try:
+        return generate_daily_flc_report(districtid,background_tasks)
+    except Exception as e:
+        return {"error": str(e), "message": "Failed to generate Appendix 1"}
