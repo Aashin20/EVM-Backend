@@ -76,3 +76,19 @@ async def get_appendix_2(districtid: int,background_tasks: BackgroundTasks):
         return generate_flc_appendix2(districtid,background_tasks)
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate Appendix 2"}
+
+
+@router.post("/appendix-3")
+async def get_appendix_3(data: Appendix3,background_tasks: BackgroundTasks):
+    try:
+        return generate_appendix3_for_district(
+            district_id=data.districtid,
+            joining_date=data.joining_date,
+            members=data.members,
+            free_accommodation=data.free_accommodation,
+            local_conveyance=data.local_conveyance,
+            relieving_date=data.relieving_date,
+            background_tasks=background_tasks
+        )
+    except Exception as e:
+        return {"error": str(e), "message": "Failed to generate Appendix 3"}
