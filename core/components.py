@@ -22,7 +22,7 @@ from utils.delete_file import remove_file
 class ComponentModel(BaseModel):
     serial_number: str
     component_type: str
-    dom: str
+    dom: Optional[str]
     box_no: Optional[str] = None
     current_warehouse_id: Optional[int] = None #Remove for prod
 
