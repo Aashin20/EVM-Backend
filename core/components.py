@@ -613,35 +613,39 @@ def components_without_warehouse(district_id: int):
         try:
             result = {"CU": [], "BU": [], "DMM": []}
 
-            # CU
-            cu_serials = (
-                db.query(EVMComponent.serial_number)
+  
+            cu_boxes = (
+                db.query(EVMComponent.box_no)
                 .join(User, EVMComponent.current_user_id == User.id)
                 .filter(
                     EVMComponent.component_type == "CU",
                     EVMComponent.status == "FLC_Passed",
                     EVMComponent.current_warehouse_id == None,
+                    EVMComponent.box_no != None,
                     User.district_id == district_id
                 )
+                .distinct()
                 .all()
             )
-            result["CU"] = [row.serial_number for row in cu_serials]
+            result["CU"] = [row.box_no for row in cu_boxes]
 
-            # BU
-            bu_serials = (
-                db.query(EVMComponent.serial_number)
+       
+            bu_boxes = (
+                db.query(EVMComponent.box_no)
                 .join(User, EVMComponent.current_user_id == User.id)
                 .filter(
                     EVMComponent.component_type == "BU",
                     EVMComponent.status == "FLC_Passed",
                     EVMComponent.current_warehouse_id == None,
+                    EVMComponent.box_no != None,
                     User.district_id == district_id
                 )
+                .distinct()
                 .all()
             )
-            result["BU"] = [row.serial_number for row in bu_serials]
+            result["BU"] = [row.box_no for row in bu_boxes]
 
-            # DMM
+      
             dmm_serials = (
                 db.query(EVMComponent.serial_number)
                 .join(User, EVMComponent.current_user_id == User.id)
@@ -659,6 +663,5 @@ def components_without_warehouse(district_id: int):
             return result
 
         except Exception as e:
-            # Optional: Log this in a production logging system
             print(f"Error fetching unallocated components: {str(e)}")
             return {"CU": [], "BU": [], "DMM": []}
