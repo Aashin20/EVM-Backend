@@ -3,7 +3,7 @@ from core.components import (new_components, ComponentModel,view_paired_cu,view_
                              view_paired_bu,view_paired_cu_sec,
                              view_paired_cu_deo,view_components_sec,view_components_deo,
                              view_paired_bu_deo,view_paired_bu_sec,approve_component_by_sec,approval_queue_sec,
-                             view_dmm,warehouse_reentry)
+                             view_dmm,warehouse_reentry,components_without_warehouse)
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from utils.authtoken import get_current_user
@@ -119,3 +119,7 @@ async def fetch_cu_warehouse(warehouse_id: str,current_user: dict = Depends(get_
 @router.post("/warehouse/reentry")
 async def warehouse_reentry_route(data: List[Dict[str, Any]], current_user: dict = Depends(get_current_user)):
     return warehouse_reentry(data, current_user['user_id'])
+
+@router.get("/unhoused/view")
+async def get_unhoused(district_id:int):
+    return components_without_warehouse(district_id)
