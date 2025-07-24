@@ -7,10 +7,11 @@ from reportlab.lib.enums import TA_CENTER
 from datetime import datetime
 from typing import List
 from reportlab.lib.units import inch
+import uuid
 
-
-def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):
+def FLC_Certificate_BU(components: List[dict]):
     # Create document with adjusted margins
+    filename = f"Annexure_3_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                             leftMargin=0.5*inch, rightMargin=0.5*inch, 
                             topMargin=0.5*inch, bottomMargin=0.5*inch)
@@ -110,8 +111,9 @@ def FLC_Certificate_BU(components: List[dict], filename="Annexure_3.pdf"):
     doc.build(elements)
     return filename
 
-def FLC_Certificate_CU(components: List[dict], filename="Annexure_3.pdf"):
+def FLC_Certificate_CU(components: List[dict]):
     # Create document with landscape orientation
+    filename = f"Annexure_3_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=landscape(A4), 
                             leftMargin=0.5*inch, rightMargin=0.5*inch, 
                             topMargin=0.5*inch, bottomMargin=0.5*inch)
