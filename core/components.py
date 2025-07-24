@@ -8,23 +8,26 @@ from typing import Optional, List,Dict, Any
 from datetime import date,datetime
 from annexure.Annex_1 import CU_1,DMM_1
 from fastapi.responses import FileResponse
-from fastapi import Response
+from fastapi import Response,BackgroundTasks
 from models.users import LevelEnum
 from fastapi.exceptions import HTTPException
 from fastapi import HTTPException, Response
 from sqlalchemy.orm import joinedload
 from typing import List
 from collections import defaultdict
+import tempfile
+import uuid
+from utils.delete_file import remove_file
 
 class ComponentModel(BaseModel):
     serial_number: str
     component_type: str
     dom: str
-    box_no: Optional[int] = None
+    box_no: Optional[str] = None
     current_warehouse_id: Optional[int] = None #Remove for prod
 
 
-def new_components(components: List[ComponentModel], phy_order_no: str, user_id: int):
+def new_components(components: List[ComponentModel], phy_order_no: str, user_id: int,background_tasks: BackgroundTasks):
     failed_serials = []
     
     with Database.get_session() as session:
@@ -112,36 +115,45 @@ def new_components(components: List[ComponentModel], phy_order_no: str, user_id:
         
             
         if component_type in ["CU", "BU"]:
-            pdf_filename = f"Annexure_1_{component_type}.pdf"
-            
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
             CU_1(
-                components=to_add, 
-                component_type=component_type, 
-                warehouse_names=warehouse_names, 
-                filename=pdf_filename,
-                alloted_to=district_name,
-                order_no=phy_order_no
-            )
+                    components=to_add, 
+                    component_type=component_type, 
+                    warehouse_names=warehouse_names, 
+                    filename=tmp_path,
+                    alloted_to=district_name,
+                    order_no=phy_order_no
+                )
             
+            background_tasks.add_task(remove_file, tmp_path)
+
             return FileResponse(
-                path=pdf_filename,
-                filename=pdf_filename,
-                media_type="application/pdf"
-            )
+                    path=tmp_path,
+                    filename=f"Annexure_1_{component_type}_{uuid.uuid4().hex}.pdf",
+                    media_type="application/pdf"
+                )
+
         else:
-            pdf_filename = f"Annexure_1_{component_type}.pdf"
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
             DMM_1(
-                components=to_add, 
-                component_type=component_type, 
-                filename=pdf_filename,
-                alloted_to=district_name,
-                order_no=phy_order_no
-            )
+                    components=to_add, 
+                    component_type=component_type, 
+                    filename=tmp_path,
+                    alloted_to=district_name,
+                    order_no=phy_order_no
+                )
+
+            background_tasks.add_task(remove_file, tmp_path)
+
             return FileResponse(
-                path=pdf_filename,
-                filename=pdf_filename,
-                media_type="application/pdf"
-            )
+                    path=tmp_path,
+                    filename=f"Annexure_1_{component_type}_{uuid.uuid4().hex}.pdf",
+                    media_type="application/pdf"
+                )
     
 def view_components(component_type:str,user_id: int):
 
