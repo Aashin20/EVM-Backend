@@ -607,3 +607,58 @@ def warehouse_reentry(warehouse_updates: List[Dict[str, Any]], user_id: int):
                 status_code=500,
                 detail=f"Failed to update EVM warehouse: {str(e)}"
             )
+
+def components_without_warehouse(district_id: int):
+    with Database.get_session() as db:
+        try:
+            result = {"CU": [], "BU": [], "DMM": []}
+
+            # CU
+            cu_serials = (
+                db.query(EVMComponent.serial_number)
+                .join(User, EVMComponent.current_user_id == User.id)
+                .filter(
+                    EVMComponent.component_type == "CU",
+                    EVMComponent.status == "FLC_Passed",
+                    EVMComponent.current_warehouse_id == None,
+                    User.district_id == district_id
+                )
+                .all()
+            )
+            result["CU"] = [row.serial_number for row in cu_serials]
+
+            # BU
+            bu_serials = (
+                db.query(EVMComponent.serial_number)
+                .join(User, EVMComponent.current_user_id == User.id)
+                .filter(
+                    EVMComponent.component_type == "BU",
+                    EVMComponent.status == "FLC_Passed",
+                    EVMComponent.current_warehouse_id == None,
+                    User.district_id == district_id
+                )
+                .all()
+            )
+            result["BU"] = [row.serial_number for row in bu_serials]
+
+            # DMM
+            dmm_serials = (
+                db.query(EVMComponent.serial_number)
+                .join(User, EVMComponent.current_user_id == User.id)
+                .filter(
+                    EVMComponent.component_type == "DMM",
+                    EVMComponent.status == "FLC_Passed",
+                    EVMComponent.current_warehouse_id == None,
+                    EVMComponent.pairing_id == None,
+                    User.district_id == district_id
+                )
+                .all()
+            )
+            result["DMM"] = [row.serial_number for row in dmm_serials]
+
+            return result
+
+        except Exception as e:
+            # Optional: Log this in a production logging system
+            print(f"Error fetching unallocated components: {str(e)}")
+            return {"CU": [], "BU": [], "DMM": []}
