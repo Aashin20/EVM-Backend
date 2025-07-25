@@ -60,7 +60,7 @@ class EVMComponentLogs(Base):
     __tablename__ = 'evm_components_logs'
 
     id = Column(Integer, primary_key=True)
-    serial_number = Column(String, nullable=False)  # Removed unique=True
+    serial_number = Column(String, nullable=False)  
     component_type = Column(Enum(EVMComponentType), nullable=False)
 
     status = Column(String, default="FLC_Pending")  
@@ -90,7 +90,7 @@ class PairingRecordLogs(Base):
     completed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Remove back_populates since PollingStation.pairing_records references PairingRecord, not PairingRecordLogs
+    
     polling_station = relationship("PollingStation")
     created_by = relationship("User", foreign_keys=[created_by_id])
     completed_by = relationship("User", foreign_keys=[completed_by_id])
@@ -100,10 +100,10 @@ class FLCRecordLogs(Base):
     __tablename__ = 'flc_records_logs'
 
     id = Column(Integer, primary_key=True)
-    cu_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=False)
+    cu_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=True)
     dmm_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=False)
-    dmm_seal_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=False)
-    pink_paper_seal_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=False)
+    dmm_seal_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=True)
+    pink_paper_seal_id = Column(Integer, ForeignKey('evm_components_logs.id'), nullable=True)
 
     box_no = Column(String)
     passed = Column(Boolean, default=False)
