@@ -10,9 +10,25 @@ from pydantic import BaseModel
 from typing import List
 import uuid
 from utils.rate_limiter import limiter
+from core.flc import generate_dmm_flc_pdf,generate_bu_flc_pdf,generate_cu_flc_pdf
+from annexure.box_wise_sticker import Box_wise_sticker
+from utils.delete_file import remove_file
 
 router = APIRouter()
 
+
+class Component(BaseModel):
+    serial_no: str
+    status: str
+    flc_date: str
+
+class Box(BaseModel):
+    box_no: str
+    components: List[Component]
+
+class BoxStickerRequest(BaseModel):
+    boxes_data: List[Box]
+    
 class Appendix3(BaseModel):
     districtid: int
     joining_date: str
@@ -46,12 +62,15 @@ async def get_pairing_sticker(request: Request, data_list: list[EVMData], curren
         return pairing_sticker(data_list, filename=f"pairing_sticker_{uuid.uuid4().hex}.pdf")
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate pairing sticker"}
-    
-@router.get("/box-sticker/{district_id}")
-@limiter.limit("5/minute")
-async def get_box_sticker(request: Request, district_id: str, current_user: dict = Depends(get_current_user)):
-    return generate_box_wise_sticker(district_id)
 
+@router.post("/box-sticker")
+@limiter.limit("5/minute")
+async def get_box_sticker(request: Request, data: BoxStickerRequest, background_tasks: BackgroundTasks,current_user: dict = Depends(get_current_user)):
+    filename = f"box_wise_sticker_{uuid.uuid4().hex}.pdf"   
+    pdf = Box_wise_sticker(data.boxes_data, filename)
+    background_tasks.add_task(remove_file, filename)
+    return FileResponse(pdf, media_type='application/pdf', filename=filename)
+        
 @router.get("/templates/add/{component_type}")
 @limiter.limit("5/minute")
 async def get_add_template(request: Request, component_type: str, current_user: dict = Depends(get_current_user)):
@@ -103,3 +122,4 @@ async def get_appendix_3(request: Request, data: Appendix3, background_tasks: Ba
         )
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate Appendix 3"}
+   
