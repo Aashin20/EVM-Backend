@@ -634,3 +634,115 @@ def generate_cu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
         logger.error(f"CU PDF generation error: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
 
+def view_flc_components(component_type: str, district_id: int):
+    with Database.get_session() as session:
+        flc_records = []
+        
+        if component_type == "CU":
+            # Fetch FLC records for CU components
+            records = session.query(FLCRecord).join(
+                EVMComponent, FLCRecord.cu_id == EVMComponent.id
+            ).join(
+                User, EVMComponent.current_user_id == User.id
+            ).filter(
+                and_(
+                    FLCRecord.cu_id.isnot(None),
+                    User.district_id == district_id
+                )
+            ).all()
+            
+            flc_records = [
+                {
+                    "id": record.id,
+                    "serial_number": record.cu.serial_number if record.cu else None,
+                    "component_type": "CU",
+                    "flc_date": record.flc_date,
+                    "status": "Passed" if record.passed else "Failed",
+                    "remarks": record.remarks,
+                    "flc_by": record.flc_by.username if record.flc_by else None,
+                    "box_no": record.box_no,
+                    "district_id": district_id
+                } for record in records
+            ]
+            
+        elif component_type == "BU":
+            # Fetch FLC records for BU components
+            records = session.query(FLCBallotUnit).join(
+                EVMComponent, FLCBallotUnit.bu_id == EVMComponent.id
+            ).join(
+                User, EVMComponent.current_user_id == User.id
+            ).filter(
+                User.district_id == district_id
+            ).all()
+            
+            flc_records = [
+                {
+                    "id": record.id,
+                    "serial_number": record.bu.serial_number if record.bu else None,
+                    "component_type": "BU",
+                    "flc_date": record.flc_date,
+                    "status": "Passed" if record.passed else "Failed",
+                    "remarks": record.remarks,
+                    "flc_by": record.flc_by.username if record.flc_by else None,
+                    "box_no": record.box_no,
+                    "district_id": district_id
+                } for record in records
+            ]
+            
+        elif component_type == "DMM":
+            # Fetch FLC records for DMM components from FLCRecord table
+            flc_dmm_records = session.query(FLCRecord).join(
+                EVMComponent, FLCRecord.dmm_id == EVMComponent.id
+            ).join(
+                User, EVMComponent.current_user_id == User.id
+            ).filter(
+                User.district_id == district_id
+            ).all()
+            
+            # Fetch FLC records for DMM components from FLCDMMUnit table
+            flc_dmm_unit_records = session.query(FLCDMMUnit).join(
+                EVMComponent, FLCDMMUnit.dmm_id == EVMComponent.id
+            ).join(
+                User, EVMComponent.current_user_id == User.id
+            ).filter(
+                User.district_id == district_id
+            ).all()
+            
+            # Combine records from FLCRecord table
+            flc_records.extend([
+                {
+                    "id": record.id,
+                    "serial_number": record.dmm.serial_number if record.dmm else None,
+                    "component_type": "DMM",
+                    "flc_date": record.flc_date,
+                    "status": "Passed" if record.passed else "Failed",
+                    "remarks": record.remarks,
+                    "flc_by": record.flc_by.username if record.flc_by else None,
+                    "box_no": record.box_no,
+                    "district_id": district_id,
+                    "source_table": "flc_records"
+                } for record in flc_dmm_records
+            ])
+            
+            # Combine records from FLCDMMUnit table
+            flc_records.extend([
+                {
+                    "id": record.id,
+                    "serial_number": record.dmm.serial_number if record.dmm else None,
+                    "component_type": "DMM",
+                    "flc_date": record.created_at,  # FLCDMMUnit uses created_at instead of flc_date
+                    "status": "Passed" if record.passed else "Failed",
+                    "remarks": record.remarks,
+                    "flc_by": record.flc_by.username if record.flc_by else None,
+                    "box_no": None,  # FLCDMMUnit doesn't have box_no
+                    "district_id": district_id,
+                    "source_table": "flc_dmm_unit"
+                } for record in flc_dmm_unit_records
+            ])
+            
+
+        
+        if not flc_records:
+            raise HTTPException(status_code=204, detail="No FLC records found")
+            
+        return flc_records
