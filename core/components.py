@@ -328,6 +328,48 @@ def FLC_dashboard(district_id: int) -> Dict[str, Any]:
         return response
 
 
+def sec_dashboard() -> Dict[str, Any]:
+    with Database.get_session() as session:
+        
+        results = session.query(
+            EVMComponent.component_type,
+            EVMComponent.status,
+            func.count(EVMComponent.id).label('count')
+        ).filter(
+            EVMComponent.component_type.in_(["CU", "DMM", "BU"])
+        ).group_by(
+            EVMComponent.component_type,
+            EVMComponent.status
+        ).all()
+        
+        
+        response = {
+            "CU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+            "DMM": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+            "BU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+            "totals": {
+                "FLC_Pending": 0,
+                "FLC_Passed": 0,
+                "FLC_Failed": 0
+            }
+        }
+        
+    
+        for component_type, status, count in results:
+            response[component_type]["total"] += count
+            
+            if status == "FLC_Passed":
+                response[component_type]["passed"] = count
+                response["totals"]["FLC_Passed"] += count
+            elif status == "FLC_Failed":
+                response[component_type]["failed"] = count
+                response["totals"]["FLC_Failed"] += count
+            elif status == "FLC_Pending":
+                response[component_type]["pending"] = count
+                response["totals"]["FLC_Pending"] += count
+        
+        return response
+    
 def view_paired_cu_sec():
     with Database.get_session() as session:
         components = session.query(EVMComponent).filter(
