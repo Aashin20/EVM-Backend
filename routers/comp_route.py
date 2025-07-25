@@ -139,7 +139,7 @@ async def warehouse_reentry_route(request: Request, data: List[Dict[str, Any]], 
 
 @router.get("/unhoused/view/{district_id}")
 @limiter.limit("30/minute")
-async def get_unhoused(request: Request, district_id: int):
+async def get_unhoused(request: Request, district_id: int,current_user: dict = Depends(get_current_user)):
     return components_without_warehouse(district_id)
 
 @router.post("/warehouse/entry")
