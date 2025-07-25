@@ -566,3 +566,34 @@ def generate_dmm_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
         logger.error(f"DMM PDF generation error: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
     
+def generate_bu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
+    try:
+        with Database.get_session() as session:
+            flc_records = session.query(FLCBallotUnit).join(
+                User, FLCBallotUnit.flc_by_id == User.id
+            ).filter(
+                User.district_id == district_id
+            ).all()
+            
+            if not flc_records:
+                raise HTTPException(status_code=404, detail="No BU FLC records found for this district")
+            
+            pdf_data = []
+            for flc in flc_records:
+                bu = session.query(EVMComponent).filter(EVMComponent.id == flc.bu_id).first()
+                
+                pdf_data.append({
+                    "serial_number": bu.serial_number if bu else "",
+                    "passed": flc.passed
+                })
+            
+            pdf_filename = FLC_Certificate_BU(pdf_data)
+            background_tasks.add_task(remove_file, pdf_filename)
+            return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"BU PDF generation error: {e}")
+        raise HTTPException(status_code=500, detail="PDF generation failed")
+    
