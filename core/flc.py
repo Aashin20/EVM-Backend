@@ -597,3 +597,40 @@ def generate_bu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
         logger.error(f"BU PDF generation error: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
     
+def generate_cu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
+    try:
+        with Database.get_session() as session:
+            flc_records = session.query(FLCRecord).join(
+                User, FLCRecord.flc_by_id == User.id
+            ).filter(
+                User.district_id == district_id
+            ).all()
+            
+            if not flc_records:
+                raise HTTPException(status_code=404, detail="No CU FLC records found for this district")
+            
+            pdf_data = []
+            for flc in flc_records:
+                cu = session.query(EVMComponent).filter(EVMComponent.id == flc.cu_id).first()
+                dmm = session.query(EVMComponent).filter(EVMComponent.id == flc.dmm_id).first()
+                dmm_seal = session.query(EVMComponent).filter(EVMComponent.id == flc.dmm_seal_id).first()
+                pink_seal = session.query(EVMComponent).filter(EVMComponent.id == flc.pink_paper_seal_id).first()
+                
+                pdf_data.append({
+                    "cu_number": cu.serial_number if cu else "",
+                    "dmm_number": dmm.serial_number if dmm else "",
+                    "dmm_seal_no": dmm_seal.serial_number if dmm_seal else "",
+                    "cu_pink_seal": pink_seal.serial_number if pink_seal else "",
+                    "passed": flc.passed
+                })
+            
+            pdf_filename = FLC_Certificate_CU(pdf_data)
+            background_tasks.add_task(remove_file, pdf_filename)
+            return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"CU PDF generation error: {e}")
+        raise HTTPException(status_code=500, detail="PDF generation failed")
+
