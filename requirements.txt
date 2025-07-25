@@ -7,3 +7,4 @@ reportlab
 SQLAlchemy
 uvicorn
 psycopg2
+slowapi
