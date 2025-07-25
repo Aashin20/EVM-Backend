@@ -122,4 +122,11 @@ async def get_appendix_3(request: Request, data: Appendix3, background_tasks: Ba
         )
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate Appendix 3"}
-   
+    
+@router.get("/annexure-3/DMM/{district_id}")
+async def get_dmm_flc_pdf(request: Request, district_id: str, background_tasks: BackgroundTasks,current_user: dict = Depends(get_current_user)):
+    try:
+        return generate_dmm_flc_pdf(district_id, background_tasks)
+    except Exception as e:
+        return {"error": str(e), "message": "Failed to generate DMM FLC PDF"}
+    
