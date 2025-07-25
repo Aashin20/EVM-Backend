@@ -32,3 +32,8 @@ async def flc_dmm_bulk(request: Request, data: List[FLCDMMModel], background_tas
 @limiter.limit("30/minute")
 async def view_flc_components_route(request: Request,component_type: str, district_id: str,current_user: dict = Depends(get_current_user)):
      return view_flc_components(component_type, district_id)
+
+@router.get('/summary')
+@limiter.limit("30/minute")
+async def view_all_districts_flc_summary_route(request: Request,current_user: dict = Depends(get_current_user)):
+    return view_all_districts_flc_summary()
