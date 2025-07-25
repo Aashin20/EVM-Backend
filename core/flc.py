@@ -2,8 +2,8 @@ from core.db import Database
 from models.evm import FLCRecord, FLCBallotUnit, FLCDMMUnit, EVMComponentType, EVMComponent, PairingRecord,BoxNumber
 from models.logs import FLCBallotUnitLogs, FLCRecordLogs, EVMComponentLogs, PairingRecordLogs
 from pydantic import BaseModel
-from fastapi import HTTPException,BackgroundTasks
-from typing import Optional, List
+from fastapi import HTTPException,BackgroundTasks,Response
+from typing import Optional, List,Any
 from fastapi.responses import FileResponse
 from annexure.Annex_3 import FLC_Certificate_BU, FLC_Certificate_CU
 from annexure.box_wise_sticker import Box_wise_sticker
@@ -12,6 +12,7 @@ from models.users import User
 from sqlalchemy import and_
 from datetime import datetime
 from utils.delete_file import remove_file
+from models.users import District
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class FLCCUModel(BaseModel):
 
 class FLCDMMModel(BaseModel):
     dmm_serial: str
-    dmm_dom: str
+    dmm_dom: Optional[str] = None
     passed: bool
     remarks: Optional[str] = None
 
@@ -172,8 +173,7 @@ def update_box_counts(session, box_assignments: Dict[str, int]) -> None:
             BoxNumber.num_components: BoxNumber.num_components + count
         })
 
-
-def flc_cu(data_list: List[FLCCUModel], user_id: int,background_tasks: BackgroundTasks):
+def flc_cu(data_list: List[FLCCUModel], user_id: int, background_tasks: BackgroundTasks):
     if not data_list:
         raise HTTPException(status_code=400, detail="No data provided")
     
@@ -200,7 +200,6 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int,background_tasks: Backgroun
             deo_user_id = get_deo_user_id(session, user_id)
             flc_records = []
             pairings = []
-            pdf_data = []
             
             for data in data_list:
                 cu, cu_log = create_or_update_component(
@@ -249,14 +248,6 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int,background_tasks: Backgroun
                 flc.dmm_log_id = dmm_log.id
                 flc.dmm_seal_log_id = dmm_seal_log.id
                 flc.pink_paper_seal_log_id = pink_seal_log.id
-                
-                pdf_data.append({
-                    "cu_number": cu.serial_number,
-                    "dmm_number": dmm.serial_number,
-                    "dmm_seal_no": dmm_seal.serial_number,
-                    "cu_pink_seal": pink_seal.serial_number,
-                    "passed": data.passed
-                })
             
             session.add_all(flc_records)
             session.flush()  # Flush FLC records before creating logs
@@ -268,17 +259,15 @@ def flc_cu(data_list: List[FLCCUModel], user_id: int,background_tasks: Backgroun
             
             session.commit()
             
-            pdf_filename = FLC_Certificate_CU(pdf_data)
-            background_tasks.add_task(remove_file, pdf_filename)
-            return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
-            
+            return Response(status_code=200, content="FLC processing completed successfully")
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"FLC CU error: {e}")
         raise HTTPException(status_code=500, detail="FLC processing failed")
 
-def flc_bu(data_list: List[FLCBUModel], user_id: int,background_tasks: BackgroundTasks):
+
+def flc_bu(data_list: List[FLCBUModel], user_id: int, background_tasks: BackgroundTasks):
     if not data_list:
         raise HTTPException(status_code=400, detail="No data provided")
     
@@ -304,7 +293,6 @@ def flc_bu(data_list: List[FLCBUModel], user_id: int,background_tasks: Backgroun
             # Process FLC records
             deo_user_id = get_deo_user_id(session, user_id)
             flc_records = []
-            pdf_data = []
             
             for data in data_list:
                 bu, bu_log = create_or_update_component(
@@ -322,11 +310,6 @@ def flc_bu(data_list: List[FLCBUModel], user_id: int,background_tasks: Backgroun
                 # Store log ID for later use in FLC logs
                 flc.bu_log_id = bu_log.id
                 flc_records.append(flc)
-                
-                pdf_data.append({
-                    "serial_number": bu.serial_number,
-                    "passed": data.passed
-                })
             
             session.add_all(flc_records)
             session.flush()  # Flush FLC records before creating logs
@@ -338,9 +321,7 @@ def flc_bu(data_list: List[FLCBUModel], user_id: int,background_tasks: Backgroun
             
             session.commit()
             
-            pdf_filename = FLC_Certificate_BU(pdf_data)
-            background_tasks.add_task(remove_file, pdf_filename)
-            return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
+            return Response(status_code=200, content="FLC processing completed successfully")
             
     except HTTPException:
         raise
@@ -396,15 +377,30 @@ def create_bu_flc_logs(session, flc_records, user_id):
     
     session.add_all(flc_logs)
 
-def flc_dmm(data_list: List[FLCDMMModel], user_id: int,background_tasks: BackgroundTasks):
+def flc_dmm(data_list: List[FLCDMMModel], user_id: int, background_tasks: BackgroundTasks):
     if not data_list:
         raise HTTPException(status_code=400, detail="No data provided")
     
     try:
         with Database.get_session() as session:
+            dmm_serials = [data.dmm_serial for data in data_list]
+            
+            if len(dmm_serials) != len(set(dmm_serials)):
+                raise HTTPException(status_code=400, detail="Duplicate DMM serials in request")
+            
+            existing_components = session.query(EVMComponent.serial_number).filter(
+                EVMComponent.serial_number.in_(dmm_serials)
+            ).all()
+            
+            if existing_components:
+                existing_serials = [comp.serial_number for comp in existing_components]
+                raise HTTPException(
+                    status_code=409, 
+                    detail=f"DMM components already exist: {', '.join(existing_serials)}"
+                )
+            
             deo_user_id = get_deo_user_id(session, user_id)
             flc_records = []
-            pdf_data = []
             
             for data in data_list:
                 dmm, dmm_log = create_or_update_component(
@@ -418,34 +414,23 @@ def flc_dmm(data_list: List[FLCDMMModel], user_id: int,background_tasks: Backgro
                     remarks=data.remarks,
                     flc_by_id=user_id
                 )
-                # Store log ID for later use
                 flc.dmm_log_id = dmm_log.id
                 flc_records.append(flc)
-                
-                pdf_data.append({
-                    "cu_number": "",
-                    "dmm_number": dmm.serial_number,
-                    "dmm_seal_no": "",
-                    "cu_pink_seal": "",
-                    "passed": data.passed
-                })
             
             session.add_all(flc_records)
-            session.flush()  # Flush FLC records before creating logs
+            session.flush()
             
             create_dmm_flc_logs(session, flc_records, user_id)
             session.commit()
             
-            pdf_filename = FLC_Certificate_CU(pdf_data)
-            background_tasks.add_task(remove_file, pdf_filename)
-            return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
+            return Response(status_code=200, content="FLC DMM processing completed successfully")
             
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"FLC DMM error: {e}")
         raise HTTPException(status_code=500, detail="DMM FLC processing failed")
-
+    
 def create_dmm_flc_logs(session, flc_records, user_id):
     flc_logs = []
     for flc_record in flc_records:
@@ -546,3 +531,38 @@ def generate_box_wise_sticker(district_id: str, filename: str = "Box_Wise_Sticke
     except Exception as e:
         logger.error(f"Error generating box wise sticker: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
+    
+def generate_dmm_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
+    try:
+        with Database.get_session() as session:
+            flc_records = session.query(FLCDMMUnit).join(
+                User, FLCDMMUnit.flc_by_id == User.id
+            ).filter(
+                User.district_id == district_id
+            ).all()
+            
+            if not flc_records:
+                raise HTTPException(status_code=404, detail="No DMM FLC records found for this district")
+            
+            pdf_data = []
+            for flc in flc_records:
+                dmm = session.query(EVMComponent).filter(EVMComponent.id == flc.dmm_id).first()
+                
+                pdf_data.append({
+                    "cu_number": "",
+                    "dmm_number": dmm.serial_number if dmm else "",
+                    "dmm_seal_no": "",
+                    "cu_pink_seal": "",
+                    "passed": flc.passed
+                })
+            
+            pdf_filename = FLC_Certificate_CU(pdf_data)
+            background_tasks.add_task(remove_file, pdf_filename)
+            return FileResponse(pdf_filename, media_type='application/pdf', filename=pdf_filename)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"DMM PDF generation error: {e}")
+        raise HTTPException(status_code=500, detail="PDF generation failed")
+    
