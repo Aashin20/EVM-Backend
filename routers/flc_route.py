@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request  
-from core.flc import flc_cu, FLCCUModel, FLCBUModel, FLCDMMModel, flc_bu, flc_dmm
+from core.flc import flc_cu, FLCCUModel, FLCBUModel, FLCDMMModel, flc_bu, flc_dmm,view_flc_components,view_all_districts_flc_summary
 from typing import List
 from utils.authtoken import get_current_user
 from fastapi import HTTPException, BackgroundTasks
@@ -27,3 +27,8 @@ async def flc_dmm_bulk(request: Request, data: List[FLCDMMModel], background_tas
         return {"status": 401, "message": "Unauthorized access"}
     else:
         return flc_dmm(data, current_user['user_id'], background_tasks)
+    
+@router.get('/view/{component_type}/{district_id}')
+@limiter.limit("30/minute")
+async def view_flc_components_route(request: Request,component_type: str, district_id: str,current_user: dict = Depends(get_current_user)):
+     return view_flc_components(component_type, district_id)
