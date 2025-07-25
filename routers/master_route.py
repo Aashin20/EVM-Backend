@@ -7,7 +7,7 @@ from core.allotment import view_all_allotments_deo, view_all_allotments_sec
 from utils.authtoken import get_current_user
 from fastapi import Depends
 from typing import List, Optional
-from core.components import dashboard_all, sec_dashboard
+from core.components import dashboard_all, sec_dashboard, FLC_dashboard
 from pydantic import BaseModel
 from utils.rate_limiter import limiter
 
@@ -36,9 +36,6 @@ async def view(request: Request, current_user: dict = Depends(get_current_user))
 @router.post("/user/edit")
 @limiter.limit("30/minute")
 async def edit(request: Request, details: UpdateUserModel, current_user: dict = Depends(get_current_user)):
-    if current_user['role'] not in ['Developer', 'SEC']:
-        return {"status": 401, "message": "Unauthorized access"}
-    else:
         return edit_user(details)
 
 @router.post("/ps/add")
@@ -68,7 +65,7 @@ async def view_ps_data(request: Request, local_body_id: str, current_user: dict 
 
 @router.get("/dashboard")
 @limiter.limit("30/minute")
-async def dash(request: Request, current_user: dict = Depends(get_current_user)):
+async def dash(request: Request,current_user: dict = Depends(get_current_user)):
     return dashboard_all(current_user['user_id'])
 
 @router.get("/dashboard/sec")
@@ -77,6 +74,10 @@ async def sec_dash(request: Request, current_user: dict = Depends(get_current_us
     if current_user['role'] != 'SEC':
         return {"status": 401, "message": "Unauthorized access"}
     return sec_dashboard()
+
+@router.get("/dashboard/flc/{district_id}")
+async def dashboard_flc(request: Request, district_id: str = Path(...),current_user: dict = Depends(get_current_user)):
+    return FLC_dashboard(district_id)
 
 @router.get("/toggle/{role}")
 @limiter.limit("30/minute")
@@ -87,7 +88,7 @@ async def deactivate(request: Request, role: str, current_user: dict = Depends(g
 
 @router.get("/dashboard/allotments/{district_id}")
 @limiter.limit("30/minute")
-async def view_allotments(request: Request, district_id: str = Path(...)):
+async def view_allotments(request: Request, district_id: str = Path(...),current_user: dict = Depends(get_current_user)):
     try:
         district_id = int(district_id)
         return view_all_allotments_deo(district_id)
@@ -96,5 +97,5 @@ async def view_allotments(request: Request, district_id: str = Path(...)):
 
 @router.post("/warehouse/add")
 @limiter.limit("30/minute")
-async def warehouse_add(request: Request, data: WarehouseCreate):
+async def warehouse_add(request: Request, data: WarehouseCreate,current_user: dict = Depends(get_current_user)):
     return add_warehouse(data.district_id, data.warehouse_name)
