@@ -137,3 +137,9 @@ async def get_cu_flc_pdf(request: Request, district_id: str, background_tasks: B
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate CU FLC PDF"}
     
+@router.get("/annexure-3/BU/{district_id}")
+async def get_bu_flc_pdf(request: Request, district_id: str, background_tasks: BackgroundTasks,current_user: dict = Depends(get_current_user)):
+    try:
+        return generate_bu_flc_pdf(district_id, background_tasks)
+    except Exception as e:
+        return {"error": str(e), "message": "Failed to generate BU FLC PDF"}
