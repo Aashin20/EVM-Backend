@@ -208,10 +208,10 @@ class FLCRecord(Base):
     __tablename__ = 'flc_records'
 
     id = Column(Integer, primary_key=True)
-    cu_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)
+    cu_id = Column(Integer, ForeignKey('evm_components.id'), nullable=True)
     dmm_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)
-    dmm_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)         
-    pink_paper_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False) 
+    dmm_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=True)         
+    pink_paper_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=True) 
 
     box_no = Column(String, ForeignKey("box_numbers.box_no"), nullable=True)
 
