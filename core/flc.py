@@ -746,3 +746,83 @@ def view_flc_components(component_type: str, district_id: int):
             raise HTTPException(status_code=204, detail="No FLC records found")
             
         return flc_records
+   
+def view_all_districts_flc_summary() -> Dict[str, Any]:
+    
+    with Database.get_session() as session:
+        districts = session.query(District).all()
+        
+        if not districts:
+            raise HTTPException(status_code=204, detail="No districts found")
+        
+        # Initialize response structure similar to sec_dashboard
+        response = {
+            "CU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+            "BU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+            "totals": {
+                "FLC_Pending": 0,
+                "FLC_Passed": 0,
+                "FLC_Failed": 0
+            },
+            "districts": []
+        }
+        
+        for district in districts:
+            # Query database directly for this district, joining with User to get district info
+            district_results = session.query(
+                EVMComponent.component_type,
+                EVMComponent.status,
+                func.count(EVMComponent.id).label('count')
+            ).join(
+                User, EVMComponent.current_user_id == User.id
+            ).filter(
+                EVMComponent.component_type.in_(["CU", "BU"]),
+                User.district_id == district.id
+            ).group_by(
+                EVMComponent.component_type,
+                EVMComponent.status
+            ).all()
+            
+            # Initialize district data structure
+            district_data = {
+                "district_id": district.id,
+                "district_name": district.name,
+                "CU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+                "BU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+                "totals": {
+                    "FLC_Pending": 0,
+                    "FLC_Passed": 0,
+                    "FLC_Failed": 0
+                }
+            }
+            
+            # Process results using same logic as sec_dashboard
+            for component_type, status, count in district_results:
+                district_data[component_type]["total"] += count
+                
+                if status == "FLC_Passed":
+                    district_data[component_type]["passed"] = count
+                    district_data["totals"]["FLC_Passed"] += count
+                elif status == "FLC_Failed":
+                    district_data[component_type]["failed"] = count
+                    district_data["totals"]["FLC_Failed"] += count
+                elif status == "FLC_Pending":
+                    district_data[component_type]["pending"] = count
+                    district_data["totals"]["FLC_Pending"] += count
+                
+                # Update overall response totals
+                response[component_type]["total"] += count
+                
+                if status == "FLC_Passed":
+                    response[component_type]["passed"] += count
+                    response["totals"]["FLC_Passed"] += count
+                elif status == "FLC_Failed":
+                    response[component_type]["failed"] += count
+                    response["totals"]["FLC_Failed"] += count
+                elif status == "FLC_Pending":
+                    response[component_type]["pending"] += count
+                    response["totals"]["FLC_Pending"] += count
+            
+            response["districts"].append(district_data)
+        
+        return response
