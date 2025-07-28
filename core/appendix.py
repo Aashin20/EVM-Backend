@@ -14,7 +14,7 @@ from annexure.Appendix_2 import appendix_2
 from annexure.Appendix_3 import appendix_3
 from fastapi import BackgroundTasks
 from utils.delete_file import remove_file
-import tempfile
+from annexure.daily_report import daily_report
 from typing import List
 
 def generate_daily_flc_report(district_id: int, background_tasks: BackgroundTasks):
@@ -250,3 +250,132 @@ def generate_appendix3_for_district(
             media_type='application/pdf',
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
+
+def generate_flc_report_sec(background_tasks: BackgroundTasks):
+    with Database.get_session() as db_session:
+        # Get all Kerala districts
+        kerala_districts = [
+            "Thiruvananthapuram", "Kollam", "Pathanamthitta", "Alappuzha",
+            "Kottayam", "Idukki", "Ernakulam", "Thrissur", "Palakkad",
+            "Malappuram", "Kozhikode", "Wayanad", "Kannur", "Kasaragod"
+        ]
+        
+        district_data = []
+        
+        for district_name in kerala_districts:
+            # Get district by name
+            district = db_session.query(District).filter(District.name == district_name).first()
+            
+            if not district:
+                # If district not found, add with zero values
+                district_data.append({
+                    'district': district_name,
+                    'cu_till_pass': 0,
+                    'cu_till_fail': 0,
+                    'bu_till_pass': 0,
+                    'bu_till_fail': 0,
+                    'cu_on_pass': 0,
+                    'cu_on_fail': 0,
+                    'bu_on_pass': 0,
+                    'bu_on_fail': 0
+                })
+                continue
+            
+            # Get user IDs for this district
+            user_ids = [u[0] for u in db_session.query(User.id).filter(User.district_id == district.id).all()]
+            
+            if not user_ids:
+                district_data.append({
+                    'district': district_name,
+                    'cu_till_pass': 0,
+                    'cu_till_fail': 0,
+                    'bu_till_pass': 0,
+                    'bu_till_fail': 0,
+                    'cu_on_pass': 0,
+                    'cu_on_fail': 0,
+                    'bu_on_pass': 0,
+                    'bu_on_fail': 0
+                })
+                continue
+            
+            # Get CU data - pass and fail counts
+            cu_pass_total = db_session.query(func.count(FLCRecord.id)).filter(
+                FLCRecord.flc_by_id.in_(user_ids),
+                FLCRecord.passed == True
+            ).scalar() or 0
+            
+            cu_fail_total = db_session.query(func.count(FLCRecord.id)).filter(
+                FLCRecord.flc_by_id.in_(user_ids),
+                FLCRecord.passed == False
+            ).scalar() or 0
+            
+            # Get BU data - pass and fail counts
+            bu_pass_total = db_session.query(func.count(FLCBallotUnit.id)).filter(
+                FLCBallotUnit.flc_by_id.in_(user_ids),
+                FLCBallotUnit.passed == True
+            ).scalar() or 0
+            
+            bu_fail_total = db_session.query(func.count(FLCBallotUnit.id)).filter(
+                FLCBallotUnit.flc_by_id.in_(user_ids),
+                FLCBallotUnit.passed == False
+            ).scalar() or 0
+            
+            # Get today's data - pass and fail counts
+            today = datetime.now().date()
+            
+            cu_pass_today = db_session.query(func.count(FLCRecord.id)).filter(
+                FLCRecord.flc_by_id.in_(user_ids),
+                FLCRecord.passed == True,
+                func.date(FLCRecord.flc_date) == today
+            ).scalar() or 0
+            
+            cu_fail_today = db_session.query(func.count(FLCRecord.id)).filter(
+                FLCRecord.flc_by_id.in_(user_ids),
+                FLCRecord.passed == False,
+                func.date(FLCRecord.flc_date) == today
+            ).scalar() or 0
+            
+            bu_pass_today = db_session.query(func.count(FLCBallotUnit.id)).filter(
+                FLCBallotUnit.flc_by_id.in_(user_ids),
+                FLCBallotUnit.passed == True,
+                func.date(FLCBallotUnit.flc_date) == today
+            ).scalar() or 0
+            
+            bu_fail_today = db_session.query(func.count(FLCBallotUnit.id)).filter(
+                FLCBallotUnit.flc_by_id.in_(user_ids),
+                FLCBallotUnit.passed == False,
+                func.date(FLCBallotUnit.flc_date) == today
+            ).scalar() or 0
+            
+            # Calculate till date (total - today)
+            cu_pass_till = cu_pass_total - cu_pass_today
+            cu_fail_till = cu_fail_total - cu_fail_today
+            bu_pass_till = bu_pass_total - bu_pass_today
+            bu_fail_till = bu_fail_total - bu_fail_today
+            
+            district_data.append({
+                'district': district_name,
+                'cu_till_pass': cu_pass_till,
+                'cu_till_fail': cu_fail_till,
+                'bu_till_pass': bu_pass_till,
+                'bu_till_fail': bu_fail_till,
+                'cu_on_pass': cu_pass_today,
+                'cu_on_fail': cu_fail_today,
+                'bu_on_pass': bu_pass_today,
+                'bu_on_fail': bu_fail_today
+            })
+        
+        # Generate PDF
+        pdf_path = daily_report(district_data)
+        filename = os.path.basename(pdf_path)
+
+        if os.path.exists(pdf_path):
+            background_tasks.add_task(remove_file, filename)
+            return FileResponse(
+                path=pdf_path,
+                filename=filename,
+                media_type='application/pdf',
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+        else:
+            raise FileNotFoundError(f"Generated PDF file not found at {pdf_path}")
