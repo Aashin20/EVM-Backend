@@ -97,25 +97,152 @@ def create_or_update_component(session, serial: str, component_type: EVMComponen
 
 from sqlalchemy import func
 from typing import Dict, Set
+from core.db import Database
+from models.evm import FLCRecord, FLCBallotUnit, FLCDMMUnit, EVMComponentType, EVMComponent, PairingRecord, BoxNumber
+from models.logs import FLCBallotUnitLogs, FLCRecordLogs, EVMComponentLogs, PairingRecordLogs
+from pydantic import BaseModel
+from fastapi import HTTPException, BackgroundTasks, Response
+from typing import Optional, List, Any, Dict, Set
+from fastapi.responses import FileResponse
+from annexure.Annex_3 import FLC_Certificate_BU, FLC_Certificate_CU
+from annexure.box_wise_sticker import Box_wise_sticker
+import logging
+from models.users import User, District
+from sqlalchemy import and_, func
+from datetime import datetime
+from utils.delete_file import remove_file
+
+logger = logging.getLogger(__name__)
+
+class FLCCUModel(BaseModel):
+    cu_serial: str
+    cu_dom: str
+    dmm_serial: str
+    dmm_dom: str
+    dmm_seal_serial: str
+    pink_paper_seal_serial: str
+    box_no: str
+    passed: bool
+    remarks: Optional[str] = None
+
+class FLCDMMModel(BaseModel):
+    dmm_serial: str
+    dmm_dom: Optional[str] = None
+    passed: bool
+    remarks: Optional[str] = None
+
+class FLCBUModel(BaseModel):
+    bu_serial: str
+    bu_dom: str
+    box_no: str
+    passed: bool
+    remarks: Optional[str] = None
+
+def get_deo_user_id(session, user_id: int) -> int:
+    user = session.query(User).filter(User.id == user_id).first()
+    if not user or not user.district_id:
+        raise HTTPException(status_code=400, detail="User district not found")
+    
+    deo = session.query(User).filter(
+        User.role_id == 2,
+        User.district_id == user.district_id
+    ).first()
+    
+    if not deo:
+        raise HTTPException(status_code=400, detail="DEO not found")
+    
+    return deo.id
+
+def create_or_update_component_safe(session, serial: str, component_type: EVMComponentType, 
+                                  dom: Optional[str], box_no: str, deo_user_id: int, 
+                                  passed: bool, pairing_id: Optional[int] = None) -> tuple[EVMComponent, EVMComponentLogs]:
+    component = session.query(EVMComponent).filter_by(serial_number=serial).first()
+    status = "FLC_Passed" if passed else "FLC_Failed"
+    
+    if component:
+        component.status = status
+        component.box_no = box_no
+        if pairing_id:
+            component.pairing_id = pairing_id
+    else:
+        component = EVMComponent(
+            serial_number=serial,
+            component_type=component_type,
+            dom=dom,
+            box_no=box_no,
+            current_user_id=deo_user_id,
+            last_received_from_id=3,
+            date_of_receipt=datetime.now(),
+            status=status,
+            is_verified=True,
+            is_sec_approved=True,
+            pairing_id=pairing_id
+        )
+        session.add(component)
+        session.flush()
+        
+    component_log = EVMComponentLogs(
+        serial_number=component.serial_number,
+        component_type=component.component_type,
+        status=component.status,
+        is_verified=component.is_verified,
+        dom=component.dom,
+        box_no=component.box_no,
+        current_user_id=component.current_user_id,
+        current_warehouse_id=component.current_warehouse_id,
+        pairing_id=pairing_id if pairing_id else None
+    )
+    session.add(component_log)
+    session.flush()
+    return component, component_log
+
+def create_or_update_component(session, serial: str, component_type: EVMComponentType, 
+                             dom: Optional[str], box_no: str, deo_user_id: int, passed: bool) -> tuple[EVMComponent, EVMComponentLogs]:
+    component = session.query(EVMComponent).filter_by(serial_number=serial).first()
+    status = "FLC_Passed" if passed else "FLC_Failed"
+    
+    if component:
+        component.status = status
+        component.box_no = box_no
+    else:
+        component = EVMComponent(
+            serial_number=serial,
+            component_type=component_type,
+            dom=dom,
+            box_no=box_no,
+            current_user_id=deo_user_id,
+            last_received_from_id=3,
+            date_of_receipt=datetime.now(),
+            status=status,
+            is_verified=True,
+            is_sec_approved=True
+        )
+        session.add(component)
+        session.flush()
+        
+    component_log = EVMComponentLogs(
+        serial_number=component.serial_number,
+        component_type=component.component_type,
+        status=component.status,
+        is_verified=component.is_verified,
+        dom=component.dom,
+        box_no=component.box_no,
+        current_user_id=component.current_user_id,
+        current_warehouse_id=component.current_warehouse_id,
+        pairing_id=None
+    )
+    session.add(component_log)
+    session.flush()
+    return component, component_log
 
 def validate_and_prepare_boxes(session, box_assignments: Dict[str, int]) -> None:
-    
-    # Get all unique box numbers
     box_numbers = list(box_assignments.keys())
-    
-    # Query existing boxes
-    existing_boxes = session.query(BoxNumber).filter(
-        BoxNumber.box_no.in_(box_numbers)
-    ).all()
-    
+    existing_boxes = session.query(BoxNumber).filter(BoxNumber.box_no.in_(box_numbers)).all()
     existing_box_dict = {box.box_no: box for box in existing_boxes}
-    
-    # Validate capacity and prepare new boxes
     new_boxes = []
     
     for box_no, components_to_add in box_assignments.items():
         if box_no in existing_box_dict:
-            # Check if adding components would exceed limit
             current_count = existing_box_dict[box_no].num_components
             if current_count + components_to_add > 10:
                 raise HTTPException(
@@ -124,27 +251,21 @@ def validate_and_prepare_boxes(session, box_assignments: Dict[str, int]) -> None
                            f"Trying to add: {components_to_add}, Max: 10"
                 )
         else:
-            # New box - check if components would exceed limit
             if components_to_add > 10:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Box {box_no} would exceed capacity with {components_to_add} components"
                 )
-            # Create new box record
             new_box = BoxNumber(box_no=box_no, num_components=0)
             new_boxes.append(new_box)
             existing_box_dict[box_no] = new_box
     
-    # Add all new boxes to session
     if new_boxes:
         session.add_all(new_boxes)
         session.flush()
 
-
 def validate_component_box_assignment(session, component_serials: Set[str], 
                                     component_box_map: Dict[str, str]) -> None:
-   
-    # Query existing components
     existing_components = session.query(
         EVMComponent.serial_number,
         EVMComponent.box_no
@@ -153,7 +274,6 @@ def validate_component_box_assignment(session, component_serials: Set[str],
         EVMComponent.box_no.isnot(None)
     ).all()
     
-    # Check for conflicts
     for comp in existing_components:
         new_box = component_box_map.get(comp.serial_number)
         if new_box and comp.box_no != new_box:
@@ -163,9 +283,7 @@ def validate_component_box_assignment(session, component_serials: Set[str],
                        f"cannot move to box {new_box}"
             )
 
-
 def update_box_counts(session, box_assignments: Dict[str, int]) -> None:
-  
     for box_no, count in box_assignments.items():
         session.query(BoxNumber).filter(
             BoxNumber.box_no == box_no
@@ -173,180 +291,7 @@ def update_box_counts(session, box_assignments: Dict[str, int]) -> None:
             BoxNumber.num_components: BoxNumber.num_components + count
         })
 
-def flc_cu(data_list: List[FLCCUModel], user_id: int, background_tasks: BackgroundTasks):
-    if not data_list:
-        raise HTTPException(status_code=400, detail="No data provided")
-    
-    try:
-        with Database.get_session() as session:
-            # Pre-validation: Count components per box and check assignments
-            box_assignments = {}  # box_no -> component count
-            component_box_map = {}  # serial_number -> box_no
-            all_cu_serials = set()
-            
-            for data in data_list:
-                # Only CU components count towards box limit
-                box_assignments[data.box_no] = box_assignments.get(data.box_no, 0) + 1
-                component_box_map[data.cu_serial] = data.box_no
-                all_cu_serials.add(data.cu_serial)
-            
-            # Validate box capacity
-            validate_and_prepare_boxes(session, box_assignments)
-            
-            # Validate component box assignments
-            validate_component_box_assignment(session, all_cu_serials, component_box_map)
-            
-            # Process FLC records
-            deo_user_id = get_deo_user_id(session, user_id)
-            flc_records = []
-            pairings = []
-            
-            for data in data_list:
-                cu, cu_log = create_or_update_component(
-                    session, data.cu_serial, EVMComponentType.CU, 
-                    data.cu_dom, data.box_no, deo_user_id, data.passed
-                )
-                dmm, dmm_log = create_or_update_component(
-                    session, data.dmm_serial, EVMComponentType.DMM, 
-                    data.dmm_dom, data.box_no, deo_user_id, data.passed
-                )
-                dmm_seal, dmm_seal_log = create_or_update_component(
-                    session, data.dmm_seal_serial, EVMComponentType.DMM_SEAL, 
-                    None, data.box_no, deo_user_id, data.passed  # Pass None for dom
-                )
-                pink_seal, pink_seal_log = create_or_update_component(
-                    session, data.pink_paper_seal_serial, EVMComponentType.PINK_PAPER_SEAL, 
-                    None, data.box_no, deo_user_id, data.passed  # Pass None for dom
-                )
-                
-                # Ensure all component logs are flushed before creating pairing
-                session.flush()
-                
-                pairing = PairingRecord(created_by_id=user_id)
-                session.add(pairing)
-                session.flush()
-                
-                cu.pairing_id = pairing.id
-                dmm.pairing_id = pairing.id
-                dmm_seal.pairing_id = pairing.id
-                pink_seal.pairing_id = pairing.id
-                
-                flc = FLCRecord(
-                    cu_id=cu.id,
-                    dmm_id=dmm.id,
-                    dmm_seal_id=dmm_seal.id,
-                    pink_paper_seal_id=pink_seal.id,
-                    box_no=data.box_no,
-                    passed=data.passed,
-                    remarks=data.remarks,
-                    flc_by_id=user_id
-                )
-                flc_records.append(flc)
-                
-                # Store log IDs for later use in FLC logs
-                flc.cu_log_id = cu_log.id
-                flc.dmm_log_id = dmm_log.id
-                flc.dmm_seal_log_id = dmm_seal_log.id
-                flc.pink_paper_seal_log_id = pink_seal_log.id
-            
-            session.add_all(flc_records)
-            session.flush()  # Flush FLC records before creating logs
-            
-            create_cu_flc_logs(session, flc_records, user_id)
-            
-            # Update box counts after successful processing
-            update_box_counts(session, box_assignments)
-            
-            session.commit()
-            
-            return Response(status_code=200, content="FLC processing completed successfully")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"FLC CU error: {e}")
-        raise HTTPException(status_code=500, detail="FLC processing failed")
-
-
-def flc_bu(data_list: List[FLCBUModel], user_id: int, background_tasks: BackgroundTasks):
-    if not data_list:
-        raise HTTPException(status_code=400, detail="No data provided")
-    
-    try:
-        with Database.get_session() as session:
-            # Pre-validation: Count components per box and check assignments
-            box_assignments = {}  # box_no -> component count
-            component_box_map = {}  # serial_number -> box_no
-            all_bu_serials = set()
-            
-            for data in data_list:
-                # BU components count towards box limit
-                box_assignments[data.box_no] = box_assignments.get(data.box_no, 0) + 1
-                component_box_map[data.bu_serial] = data.box_no
-                all_bu_serials.add(data.bu_serial)
-            
-            # Validate box capacity
-            validate_and_prepare_boxes(session, box_assignments)
-            
-            # Validate component box assignments
-            validate_component_box_assignment(session, all_bu_serials, component_box_map)
-            
-            # Process FLC records
-            deo_user_id = get_deo_user_id(session, user_id)
-            flc_records = []
-            
-            for data in data_list:
-                bu, bu_log = create_or_update_component(
-                    session, data.bu_serial, EVMComponentType.BU, 
-                    data.bu_dom, data.box_no, deo_user_id, data.passed
-                )
-                
-                flc = FLCBallotUnit(
-                    bu_id=bu.id,
-                    box_no=data.box_no,
-                    passed=data.passed,
-                    remarks=data.remarks,
-                    flc_by_id=user_id
-                )
-                # Store log ID for later use in FLC logs
-                flc.bu_log_id = bu_log.id
-                flc_records.append(flc)
-            
-            session.add_all(flc_records)
-            session.flush()  # Flush FLC records before creating logs
-            
-            create_bu_flc_logs(session, flc_records, user_id)
-            
-            # Update box counts after successful processing
-            update_box_counts(session, box_assignments)
-            
-            session.commit()
-            
-            return Response(status_code=200, content="FLC processing completed successfully")
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"FLC BU error: {e}")
-        raise HTTPException(status_code=500, detail="FLC processing failed")
-
-def create_cu_flc_logs(session, flc_records, user_id):
-    # Create pairing logs first
-    pairing_logs = []
-    for flc_record in flc_records:
-        cu = session.query(EVMComponent).filter_by(id=flc_record.cu_id).first()
-        pairing_log = PairingRecordLogs(
-            evm_id=cu.pairing.evm_id if cu.pairing else None,
-            polling_station_id=cu.pairing.polling_station_id if cu.pairing else None,
-            created_by_id=user_id,
-            completed_by_id=cu.pairing.completed_by_id if cu.pairing else None,
-            completed_at=cu.pairing.completed_at if cu.pairing else None
-        )
-        pairing_logs.append(pairing_log)
-    
-    session.add_all(pairing_logs)
-    session.flush()
-    
-    # Create FLC logs using the component log IDs
+def create_cu_flc_logs_simple(session, flc_records, user_id):
     flc_logs = []
     for flc_record in flc_records:
         flc_log = FLCRecordLogs(
@@ -376,6 +321,160 @@ def create_bu_flc_logs(session, flc_records, user_id):
         flc_logs.append(flc_log)
     
     session.add_all(flc_logs)
+
+def create_dmm_flc_logs(session, flc_records, user_id):
+    flc_logs = []
+    for flc_record in flc_records:
+        flc_log = FLCRecordLogs(
+            cu_id=None,
+            dmm_id=getattr(flc_record, 'dmm_log_id', flc_record.dmm_id),
+            dmm_seal_id=None,
+            pink_paper_seal_id=None,
+            box_no=None,
+            passed=flc_record.passed,
+            remarks=flc_record.remarks,
+            flc_by_id=user_id
+        )
+        flc_logs.append(flc_log)
+    
+    session.add_all(flc_logs)
+
+def flc_cu(data_list: List[FLCCUModel], user_id: int, background_tasks: BackgroundTasks):
+    if not data_list:
+        raise HTTPException(status_code=400, detail="No data provided")
+    
+    try:
+        with Database.get_session() as session:
+            box_assignments = {}
+            component_box_map = {}
+            all_cu_serials = set()
+            
+            for data in data_list:
+                box_assignments[data.box_no] = box_assignments.get(data.box_no, 0) + 1
+                component_box_map[data.cu_serial] = data.box_no
+                all_cu_serials.add(data.cu_serial)
+            
+            validate_and_prepare_boxes(session, box_assignments)
+            validate_component_box_assignment(session, all_cu_serials, component_box_map)
+            
+            deo_user_id = get_deo_user_id(session, user_id)
+            flc_records = []
+            
+            for data in data_list:
+                pairing = PairingRecord(created_by_id=user_id)
+                session.add(pairing)
+                session.flush()
+                
+                pairing_log = PairingRecordLogs(
+                    evm_id=None,
+                    polling_station_id=None,
+                    created_by_id=user_id,
+                    completed_by_id=None,
+                    completed_at=None
+                )
+                session.add(pairing_log)
+                session.flush()
+                
+                cu, cu_log = create_or_update_component_safe(
+                    session, data.cu_serial, EVMComponentType.CU, 
+                    data.cu_dom, data.box_no, deo_user_id, data.passed, pairing.id
+                )
+                dmm, dmm_log = create_or_update_component_safe(
+                    session, data.dmm_serial, EVMComponentType.DMM, 
+                    data.dmm_dom, data.box_no, deo_user_id, data.passed, pairing.id
+                )
+                dmm_seal, dmm_seal_log = create_or_update_component_safe(
+                    session, data.dmm_seal_serial, EVMComponentType.DMM_SEAL, 
+                    None, data.box_no, deo_user_id, data.passed, pairing.id
+                )
+                pink_seal, pink_seal_log = create_or_update_component_safe(
+                    session, data.pink_paper_seal_serial, EVMComponentType.PINK_PAPER_SEAL, 
+                    None, data.box_no, deo_user_id, data.passed, pairing.id
+                )
+                
+                flc = FLCRecord(
+                    cu_id=cu.id,
+                    dmm_id=dmm.id,
+                    dmm_seal_id=dmm_seal.id,
+                    pink_paper_seal_id=pink_seal.id,
+                    box_no=data.box_no,
+                    passed=data.passed,
+                    remarks=data.remarks,
+                    flc_by_id=user_id
+                )
+                flc_records.append(flc)
+                
+                flc.cu_log_id = cu_log.id
+                flc.dmm_log_id = dmm_log.id
+                flc.dmm_seal_log_id = dmm_seal_log.id
+                flc.pink_paper_seal_log_id = pink_seal_log.id
+            
+            session.add_all(flc_records)
+            session.flush()
+            
+            create_cu_flc_logs_simple(session, flc_records, user_id)
+            update_box_counts(session, box_assignments)
+            session.commit()
+            
+            return Response(status_code=200, content="FLC processing completed successfully")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"FLC CU error: {e}")
+        raise HTTPException(status_code=500, detail="FLC processing failed")
+
+def flc_bu(data_list: List[FLCBUModel], user_id: int, background_tasks: BackgroundTasks):
+    if not data_list:
+        raise HTTPException(status_code=400, detail="No data provided")
+    
+    try:
+        with Database.get_session() as session:
+            box_assignments = {}
+            component_box_map = {}
+            all_bu_serials = set()
+            
+            for data in data_list:
+                box_assignments[data.box_no] = box_assignments.get(data.box_no, 0) + 1
+                component_box_map[data.bu_serial] = data.box_no
+                all_bu_serials.add(data.bu_serial)
+            
+            validate_and_prepare_boxes(session, box_assignments)
+            validate_component_box_assignment(session, all_bu_serials, component_box_map)
+            
+            deo_user_id = get_deo_user_id(session, user_id)
+            flc_records = []
+            
+            for data in data_list:
+                bu, bu_log = create_or_update_component(
+                    session, data.bu_serial, EVMComponentType.BU, 
+                    data.bu_dom, data.box_no, deo_user_id, data.passed
+                )
+                
+                flc = FLCBallotUnit(
+                    bu_id=bu.id,
+                    box_no=data.box_no,
+                    passed=data.passed,
+                    remarks=data.remarks,
+                    flc_by_id=user_id
+                )
+                flc.bu_log_id = bu_log.id
+                flc_records.append(flc)
+            
+            session.add_all(flc_records)
+            session.flush()
+            
+            create_bu_flc_logs(session, flc_records, user_id)
+            update_box_counts(session, box_assignments)
+            session.commit()
+            
+            return Response(status_code=200, content="FLC processing completed successfully")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"FLC BU error: {e}")
+        raise HTTPException(status_code=500, detail="FLC processing failed")
 
 def flc_dmm(data_list: List[FLCDMMModel], user_id: int, background_tasks: BackgroundTasks):
     if not data_list:
@@ -430,23 +529,6 @@ def flc_dmm(data_list: List[FLCDMMModel], user_id: int, background_tasks: Backgr
     except Exception as e:
         logger.error(f"FLC DMM error: {e}")
         raise HTTPException(status_code=500, detail="DMM FLC processing failed")
-    
-def create_dmm_flc_logs(session, flc_records, user_id):
-    flc_logs = []
-    for flc_record in flc_records:
-        flc_log = FLCRecordLogs(
-            cu_id=None,
-            dmm_id=getattr(flc_record, 'dmm_log_id', flc_record.dmm_id),
-            dmm_seal_id=None,
-            pink_paper_seal_id=None,
-            box_no=None,
-            passed=flc_record.passed,
-            remarks=flc_record.remarks,
-            flc_by_id=user_id
-        )
-        flc_logs.append(flc_log)
-    
-    session.add_all(flc_logs)
 
 def generate_box_wise_sticker(district_id: str, filename: str = "Box_Wise_Sticker.pdf") -> str:
     try:
@@ -531,7 +613,7 @@ def generate_box_wise_sticker(district_id: str, filename: str = "Box_Wise_Sticke
     except Exception as e:
         logger.error(f"Error generating box wise sticker: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
-    
+
 def generate_dmm_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     try:
         with Database.get_session() as session:
@@ -565,7 +647,7 @@ def generate_dmm_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     except Exception as e:
         logger.error(f"DMM PDF generation error: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
-    
+
 def generate_bu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     try:
         with Database.get_session() as session:
@@ -596,7 +678,7 @@ def generate_bu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     except Exception as e:
         logger.error(f"BU PDF generation error: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
-    
+
 def generate_cu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     try:
         with Database.get_session() as session:
@@ -639,7 +721,6 @@ def view_flc_components(component_type: str, district_id: int):
         flc_records = []
         
         if component_type == "CU":
-            # Fetch FLC records for CU components
             records = session.query(FLCRecord).join(
                 EVMComponent, FLCRecord.cu_id == EVMComponent.id
             ).join(
@@ -666,7 +747,6 @@ def view_flc_components(component_type: str, district_id: int):
             ]
             
         elif component_type == "BU":
-            # Fetch FLC records for BU components
             records = session.query(FLCBallotUnit).join(
                 EVMComponent, FLCBallotUnit.bu_id == EVMComponent.id
             ).join(
@@ -690,7 +770,6 @@ def view_flc_components(component_type: str, district_id: int):
             ]
             
         elif component_type == "DMM":
-            # Fetch FLC records for DMM components from FLCRecord table
             flc_dmm_records = session.query(FLCRecord).join(
                 EVMComponent, FLCRecord.dmm_id == EVMComponent.id
             ).join(
@@ -699,7 +778,6 @@ def view_flc_components(component_type: str, district_id: int):
                 User.district_id == district_id
             ).all()
             
-            # Fetch FLC records for DMM components from FLCDMMUnit table
             flc_dmm_unit_records = session.query(FLCDMMUnit).join(
                 EVMComponent, FLCDMMUnit.dmm_id == EVMComponent.id
             ).join(
@@ -708,7 +786,6 @@ def view_flc_components(component_type: str, district_id: int):
                 User.district_id == district_id
             ).all()
             
-            # Combine records from FLCRecord table
             flc_records.extend([
                 {
                     "id": record.id,
@@ -718,33 +795,7 @@ def view_flc_components(component_type: str, district_id: int):
                     "status": "Passed" if record.passed else "Failed",
                     "remarks": record.remarks,
                     "flc_by": record.flc_by.username if record.flc_by else None,
-                    "box_no": record.box_no,
-                    "district_id": district_id,
-                    "source_table": "flc_records"
-                } for record in flc_dmm_records
-            ])
-            
-            # Combine records from FLCDMMUnit table
-            flc_records.extend([
-                {
-                    "id": record.id,
-                    "serial_number": record.dmm.serial_number if record.dmm else None,
-                    "component_type": "DMM",
-                    "flc_date": record.created_at,  # FLCDMMUnit uses created_at instead of flc_date
-                    "status": "Passed" if record.passed else "Failed",
-                    "remarks": record.remarks,
-                    "flc_by": record.flc_by.username if record.flc_by else None,
-                    "box_no": None,  # FLCDMMUnit doesn't have box_no
-                    "district_id": district_id,
-                    "source_table": "flc_dmm_unit"
-                } for record in flc_dmm_unit_records
-            ])
-            
-
-        
-        if not flc_records:
-            raise HTTPException(status_code=204, detail="No FLC records found")
-            
+                    "box_no": record.box_no} for record in flc_dmm_records])
         return flc_records
    
 def view_all_districts_flc_summary() -> Dict[str, Any]:
