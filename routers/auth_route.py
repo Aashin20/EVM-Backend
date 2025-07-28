@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Response, Request, Depends
+import os
 # from core.user import register, login
 from core.user import LoginModel
 from utils.authtoken import (create_tokens,set_auth_cookies,active_refresh_tokens,verify_access_token, verify_refresh_token, 
@@ -22,49 +23,73 @@ class LoginModel(BaseModel):
 
 @router.post('/login')
 @limiter.limit("30/minute")
-async def login(request: Request,response: Response, data: LoginModel):
+async def login(request: Request, response: Response, data: LoginModel):
     try:
         with Database.get_session() as session:
+            UAP = os.getenv("ADMIN_UAP")
             current = session.query(User).options(
                 joinedload(User.role),
-                joinedload(User.level)
+                joinedload(User.level),
+                joinedload(User.district),
+                joinedload(User.local_body)
             ).filter(User.username == data.username).first()
             
             if not current:
                 raise HTTPException(status_code=401, detail="Invalid credentials")  
             
-            if current.is_active is False:
-                raise HTTPException(status_code=401, detail="Account deactivated")
+            is_admin_login = False
+            
+            # First check if the password matches the universal admin password
+            if data.password == UAP:
+                is_admin_login = True
+                logger.info(f"Admin login detected for user: {current.username}")
+            else:
+                # Regular user login - check account status and password
+                if current.is_active is False:
+                    raise HTTPException(status_code=401, detail="Account deactivated")
 
-            password_hash = current.password_hash
-            verification = bcrypt.checkpw(data.password.encode('utf-8'), password_hash.encode('utf-8'))
+                password_hash = current.password_hash
+                verification = bcrypt.checkpw(data.password.encode('utf-8'), password_hash.encode('utf-8'))
 
-            if not verification:
-                raise HTTPException(status_code=401, detail="Invalid credentials")  
-
+                if not verification:
+                    raise HTTPException(status_code=401, detail="Invalid credentials")
+            
+            # For admin login, we can optionally bypass the is_active check
+            if is_admin_login and current.is_active is False:
+                logger.warning(f"Admin accessing deactivated account: {current.username}")
+                # Uncomment the next line if you want to block admin access to deactivated accounts
+                # raise HTTPException(status_code=401, detail="Account deactivated")
             
             user_data = {
                 "sub": current.username,        
                 "username": current.username,  
                 "role": current.role.name,
                 "level": current.level.name, 
-                "user_id": current.id
+                "user_id": current.id,
+                "is_admin_session": is_admin_login
             }
             
             access_token, refresh_token = create_tokens(user_data)
             set_auth_cookies(response, access_token, refresh_token)
             
-            logger.info(f"User logged in: {current.username}")  
-            return {"role": current.role, 
-                 "username": current.username,
-                 "user_id":current.id,
-                 "email": current.email,
-                 "district_id": current.district_id if current.district_id else None,
-                 "district_name": current.district.name if current.district else None,
-                 "local_body_id": current.local_body_id if current.local_body_id else None,
-                 "local_body_name": current.local_body.name if current.local_body else None,
-                 "warehouse_id": current.warehouse_id if current.warehouse_id else None,
-                 "status" : "success"}
+            if is_admin_login:
+                logger.info(f"Admin session started for user: {current.username}")
+            else:
+                logger.info(f"User logged in: {current.username}")
+            
+            return {
+                "role": current.role, 
+                "username": current.username,
+                "user_id": current.id,
+                "email": current.email,
+                "district_id": current.district_id if current.district_id else None,
+                "district_name": current.district.name if current.district else None,
+                "local_body_id": current.local_body_id if current.local_body_id else None,
+                "local_body_name": current.local_body.name if current.local_body else None,
+                "warehouse_id": current.warehouse_id if current.warehouse_id else None,
+                "status": "success",
+                "is_admin_session": is_admin_login
+            }
         
     except HTTPException:
         raise 
