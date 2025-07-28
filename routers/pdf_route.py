@@ -5,7 +5,7 @@ from annexure.pairing_sticker import pairing_sticker, EVMData
 from utils.authtoken import get_current_user
 from core.flc import generate_box_wise_sticker
 from fastapi.responses import FileResponse
-from core.appendix import generate_daily_flc_report, generate_flc_appendix2, generate_appendix3_for_district
+from core.appendix import generate_daily_flc_report, generate_flc_appendix2, generate_appendix3_for_district,generate_flc_report_sec
 from pydantic import BaseModel
 from typing import List
 import uuid
@@ -143,3 +143,7 @@ async def get_bu_flc_pdf(request: Request, district_id: str, background_tasks: B
         return generate_bu_flc_pdf(district_id, background_tasks)
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate BU FLC PDF"}
+
+@router.get("/flc/daily-report")
+async def get_daily_report(request: Request, background_tasks: BackgroundTasks):
+    return generate_flc_report_sec(background_tasks)
