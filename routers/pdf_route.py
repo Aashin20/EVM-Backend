@@ -3,7 +3,6 @@ from annexure.N_35 import Form_N35, EVMPair
 from annexure.N_36 import Form_N36
 from annexure.pairing_sticker import pairing_sticker, EVMData
 from utils.authtoken import get_current_user
-from core.flc import generate_box_wise_sticker
 from fastapi.responses import FileResponse
 from core.appendix import generate_daily_flc_report, generate_flc_appendix2, generate_appendix3_for_district,generate_flc_report_sec
 from pydantic import BaseModel
