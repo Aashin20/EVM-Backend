@@ -209,7 +209,7 @@ class FLCRecord(Base):
 
     id = Column(Integer, primary_key=True)
     cu_id = Column(Integer, ForeignKey('evm_components.id'), nullable=True)
-    dmm_id = Column(Integer, ForeignKey('evm_components.id'), nullable=False)
+    dmm_id = Column(Integer, ForeignKey('evm_components.id'), nullable=True)
     dmm_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=True)         
     pink_paper_seal_id = Column(Integer, ForeignKey('evm_components.id'), nullable=True) 
 
