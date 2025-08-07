@@ -64,3 +64,42 @@ async def get_msr_details_cu_paginated(
     
     return MSR_CU_DMM_PAGINATED(limit, cursor, direction, filters)
 
+@router.get("/details/bu", response_model=MSRBUResponse)
+@limiter.limit("30/minute")
+async def get_msr_details_bu_paginated(
+    request: Request,
+    limit: int = Query(default=500, le=1000, ge=1),
+    cursor: Optional[str] = Query(default=None),
+    direction: str = Query(default="next", regex="^(next|prev)$"),
+    # Filter parameters
+    bu_received_from: Optional[str] = Query(default=None),
+    date_of_receipt: Optional[date] = Query(default=None),
+    date_of_receipt_start: Optional[date] = Query(default=None),
+    date_of_receipt_end: Optional[date] = Query(default=None),
+    ballot_unit_no: Optional[str] = Query(default=None),
+    year_of_manufacture: Optional[str] = Query(default=None),
+    flc_date: Optional[date] = Query(default=None),
+    flc_date_start: Optional[date] = Query(default=None),
+    flc_date_end: Optional[date] = Query(default=None),
+    flc_status: Optional[str] = Query(default=None),
+    bu_box_no: Optional[str] = Query(default=None),
+    bu_warehouse: Optional[str] = Query(default=None),
+    current_user: dict = Depends(get_current_user)
+):
+    
+    filters = MSRBUFilters(
+        bu_received_from=bu_received_from,
+        date_of_receipt=date_of_receipt,
+        date_of_receipt_start=date_of_receipt_start,
+        date_of_receipt_end=date_of_receipt_end,
+        ballot_unit_no=ballot_unit_no,
+        year_of_manufacture=year_of_manufacture,
+        flc_date=flc_date,
+        flc_date_start=flc_date_start,
+        flc_date_end=flc_date_end,
+        flc_status=flc_status,
+        bu_box_no=bu_box_no,
+        bu_warehouse=bu_warehouse
+    )
+    
+    return MSR_BU_PAGINATED(limit, cursor, direction, filters)
