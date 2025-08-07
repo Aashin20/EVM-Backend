@@ -1,4 +1,4 @@
-from sqlalchemy import func, cast, Integer
+from sqlalchemy import func, cast, Integer,distinct, or_
 from datetime import timedelta, datetime,date
 from fastapi.responses import FileResponse
 from models.evm import FLCRecord, FLCBallotUnit, EVMComponent
@@ -6,9 +6,7 @@ from models.users import User, District
 from annexure.Appendix_1 import appendix_1
 from core.db import Database
 import os
-from sqlalchemy.orm import Session
-from typing import Optional
-from models.evm import FLCRecord, FLCBallotUnit, EVMComponent
+from models.evm import FLCRecord, FLCBallotUnit, EVMComponent,EVMComponentType
 from models.users import District, User
 from annexure.Appendix_2 import appendix_2
 from annexure.Appendix_3 import appendix_3
@@ -16,74 +14,108 @@ from fastapi import BackgroundTasks
 from utils.delete_file import remove_file
 from annexure.daily_report import daily_report
 from typing import List
+from datetime import datetime, timedelta
+from sqlalchemy import func, and_, or_
+from typing import List, Dict, Tuple
+import logging
 
 def generate_daily_flc_report(district_id: int, background_tasks: BackgroundTasks):
     with Database.get_session() as db_session:
+        # Validate district exists
         district = db_session.query(District).filter(District.id == district_id).first()
         if not district:
             raise ValueError(f"District with ID {district_id} not found")
         
         district_name = district.name
-        user_ids = [u[0] for u in db_session.query(User.id).filter(User.district_id == district_id).all()]
         
-        if not user_ids:
+        # Get user IDs as a subquery for better performance
+        user_subquery = db_session.query(User.id).filter(User.district_id == district_id).subquery()
+        
+        # CU data with INNER JOIN to ensure component validity
+        cu_data = db_session.query(
+            func.date(FLCRecord.flc_date).label('date'),
+            func.count(distinct(FLCRecord.id)).label('count')
+        ).join(
+            # Join with any valid component
+            EVMComponent,
+            or_(
+                FLCRecord.cu_id == EVMComponent.id,
+                FLCRecord.dmm_id == EVMComponent.id,
+                FLCRecord.dmm_seal_id == EVMComponent.id,
+                FLCRecord.pink_paper_seal_id == EVMComponent.id
+            )
+        ).join(
+            user_subquery,
+            FLCRecord.flc_by_id == user_subquery.c.id
+        ).filter(
+            FLCRecord.passed == True
+        ).group_by(
+            func.date(FLCRecord.flc_date)
+        ).order_by(
+            func.date(FLCRecord.flc_date)
+        ).all()
+        
+        # BU data with INNER JOIN to ensure component validity
+        bu_data = db_session.query(
+            func.date(FLCBallotUnit.flc_date).label('date'),
+            func.count(FLCBallotUnit.id).label('count')
+        ).join(
+            EVMComponent,
+            FLCBallotUnit.bu_id == EVMComponent.id
+        ).join(
+            user_subquery,
+            FLCBallotUnit.flc_by_id == user_subquery.c.id
+        ).filter(
+            FLCBallotUnit.passed == True
+        ).group_by(
+            func.date(FLCBallotUnit.flc_date)
+        ).order_by(
+            func.date(FLCBallotUnit.flc_date)
+        ).all()
+        
+        # Process data same as main function
+        cu_dict = {row.date: row.count for row in cu_data}
+        bu_dict = {row.date: row.count for row in bu_data}
+        all_dates = sorted(set(cu_dict.keys()) | set(bu_dict.keys()))
+        
+        if not all_dates:
             daily_data = []
         else:
-            cu_data = db_session.query(
-                func.date(FLCRecord.flc_date).label('date'),
-                func.count(FLCRecord.id).label('count')
-            ).filter(
-                FLCRecord.flc_by_id.in_(user_ids),
-                FLCRecord.passed == True
-            ).group_by(func.date(FLCRecord.flc_date)).all()
+            daily_data = []
+            cu_running_total = 0
+            bu_running_total = 0
             
-            bu_data = db_session.query(
-                func.date(FLCBallotUnit.flc_date).label('date'),
-                func.count(FLCBallotUnit.id).label('count')
-            ).filter(
-                FLCBallotUnit.flc_by_id.in_(user_ids),
-                FLCBallotUnit.passed == True
-            ).group_by(func.date(FLCBallotUnit.flc_date)).all()
-            
-            cu_dict = {row.date: row.count for row in cu_data}
-            bu_dict = {row.date: row.count for row in bu_data}
-            all_dates = sorted(set(cu_dict.keys()) | set(bu_dict.keys()))
-            
-            if not all_dates:
-                daily_data = []
-            else:
-                oldest_date = all_dates[0]
-                daily_data = []
-                cu_cumulative = 0
-                bu_cumulative = 0
+            for i, current_date in enumerate(all_dates):
+                cu_on_date = cu_dict.get(current_date, 0)
+                bu_on_date = bu_dict.get(current_date, 0)
                 
-                for current_date in all_dates:
-                    cu_on_date = cu_dict.get(current_date, 0)
-                    bu_on_date = bu_dict.get(current_date, 0)
-                    
-                    if current_date == oldest_date:
-                        cu_till_date = 0
-                        bu_till_date = 0
-                    else:
-                        cu_till_date = cu_cumulative
-                        bu_till_date = bu_cumulative
-                    
-                    daily_data.append({
-                        'date': current_date.strftime("%d-%m-%Y"),
-                        'cu_till_date': cu_till_date,
-                        'bu_till_date': bu_till_date,
-                        'cu_on_date': cu_on_date,
-                        'bu_on_date': bu_on_date,
-                        'remarks': " "
-                    })
-                    
-                    cu_cumulative += cu_on_date
-                    bu_cumulative += bu_on_date
+                if i == 0:  # Oldest date
+                    cu_till_date = 0
+                    bu_till_date = 0
+                else:
+                    cu_till_date = cu_running_total
+                    bu_till_date = bu_running_total
+                
+                daily_data.append({
+                    'date': current_date.strftime("%d-%m-%Y"),
+                    'cu_till_date': cu_till_date,
+                    'bu_till_date': bu_till_date,
+                    'cu_on_date': cu_on_date,
+                    'bu_on_date': bu_on_date,
+                    'remarks': " "
+                })
+                
+                cu_running_total += cu_on_date
+                bu_running_total += bu_on_date
         
-        pdf_path = appendix_1(daily_data, district_name)
-        filename = os.path.basename(pdf_path)
+        # Generate PDF report
+        try:
+            pdf_path = appendix_1(daily_data, district_name)
+            filename = os.path.basename(pdf_path)
 
-        if os.path.exists(pdf_path):
+            if not os.path.exists(pdf_path):
+                raise FileNotFoundError(f"Generated PDF file not found at {pdf_path}")
+                
             background_tasks.add_task(remove_file, filename)
             return FileResponse(
                 path=pdf_path,
@@ -91,9 +123,10 @@ def generate_daily_flc_report(district_id: int, background_tasks: BackgroundTask
                 media_type='application/pdf',
                 headers={"Content-Disposition": f"attachment; filename={filename}"}
             )
-        else:
-            raise FileNotFoundError(f"Generated PDF file not found at {pdf_path}")
-
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate FLC report for district {district_id}: {str(e)}")
+        
 def generate_flc_appendix2(district_id: int, background_tasks: BackgroundTasks):
     end_date = date.today()
     
@@ -251,131 +284,158 @@ def generate_appendix3_for_district(
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
 
-def generate_flc_report_sec(background_tasks: BackgroundTasks):
-    with Database.get_session() as db_session:
-        # Get all Kerala districts
-        kerala_districts = [
-            "Thiruvananthapuram", "Kollam", "Pathanamthitta", "Alappuzha",
-            "Kottayam", "Idukki", "Ernakulam", "Thrissur", "Palakkad",
-            "Malappuram", "Kozhikode", "Wayanad", "Kannur", "Kasaragod"
-        ]
-        
-        district_data = []
-        
-        for district_name in kerala_districts:
-            # Get district by name
-            district = db_session.query(District).filter(District.name == district_name).first()
-            
-            if not district:
-                # If district not found, add with zero values
-                district_data.append({
-                    'district': district_name,
-                    'cu_till_pass': 0,
-                    'cu_till_fail': 0,
-                    'bu_till_pass': 0,
-                    'bu_till_fail': 0,
-                    'cu_on_pass': 0,
-                    'cu_on_fail': 0,
-                    'bu_on_pass': 0,
-                    'bu_on_fail': 0
-                })
-                continue
-            
-            # Get user IDs for this district
-            user_ids = [u[0] for u in db_session.query(User.id).filter(User.district_id == district.id).all()]
-            
-            if not user_ids:
-                district_data.append({
-                    'district': district_name,
-                    'cu_till_pass': 0,
-                    'cu_till_fail': 0,
-                    'bu_till_pass': 0,
-                    'bu_till_fail': 0,
-                    'cu_on_pass': 0,
-                    'cu_on_fail': 0,
-                    'bu_on_pass': 0,
-                    'bu_on_fail': 0
-                })
-                continue
-            
-            # Get CU data - pass and fail counts
-            cu_pass_total = db_session.query(func.count(FLCRecord.id)).filter(
-                FLCRecord.flc_by_id.in_(user_ids),
-                FLCRecord.passed == True
-            ).scalar() or 0
-            
-            cu_fail_total = db_session.query(func.count(FLCRecord.id)).filter(
-                FLCRecord.flc_by_id.in_(user_ids),
-                FLCRecord.passed == False
-            ).scalar() or 0
-            
-            # Get BU data - pass and fail counts
-            bu_pass_total = db_session.query(func.count(FLCBallotUnit.id)).filter(
-                FLCBallotUnit.flc_by_id.in_(user_ids),
-                FLCBallotUnit.passed == True
-            ).scalar() or 0
-            
-            bu_fail_total = db_session.query(func.count(FLCBallotUnit.id)).filter(
-                FLCBallotUnit.flc_by_id.in_(user_ids),
-                FLCBallotUnit.passed == False
-            ).scalar() or 0
-            
-            # Get today's data - pass and fail counts
-            today = datetime.now().date()
-            
-            cu_pass_today = db_session.query(func.count(FLCRecord.id)).filter(
-                FLCRecord.flc_by_id.in_(user_ids),
-                FLCRecord.passed == True,
-                func.date(FLCRecord.flc_date) == today
-            ).scalar() or 0
-            
-            cu_fail_today = db_session.query(func.count(FLCRecord.id)).filter(
-                FLCRecord.flc_by_id.in_(user_ids),
-                FLCRecord.passed == False,
-                func.date(FLCRecord.flc_date) == today
-            ).scalar() or 0
-            
-            bu_pass_today = db_session.query(func.count(FLCBallotUnit.id)).filter(
-                FLCBallotUnit.flc_by_id.in_(user_ids),
-                FLCBallotUnit.passed == True,
-                func.date(FLCBallotUnit.flc_date) == today
-            ).scalar() or 0
-            
-            bu_fail_today = db_session.query(func.count(FLCBallotUnit.id)).filter(
-                FLCBallotUnit.flc_by_id.in_(user_ids),
-                FLCBallotUnit.passed == False,
-                func.date(FLCBallotUnit.flc_date) == today
-            ).scalar() or 0
-            
-            # Calculate till date (total - today)
-            cu_pass_till = cu_pass_total - cu_pass_today
-            cu_fail_till = cu_fail_total - cu_fail_today
-            bu_pass_till = bu_pass_total - bu_pass_today
-            bu_fail_till = bu_fail_total - bu_fail_today
-            
-            district_data.append({
-                'district': district_name,
-                'cu_till_pass': cu_pass_till,
-                'cu_till_fail': cu_fail_till,
-                'bu_till_pass': bu_pass_till,
-                'bu_till_fail': bu_fail_till,
-                'cu_on_pass': cu_pass_today,
-                'cu_on_fail': cu_fail_today,
-                'bu_on_pass': bu_pass_today,
-                'bu_on_fail': bu_fail_today
-            })
-        
-        # Generate PDF
-        pdf_path = daily_report(district_data)
-        filename = os.path.basename(pdf_path)
 
-        if os.path.exists(pdf_path):
-            background_tasks.add_task(remove_file, filename)
-            return FileResponse(
+def get_flc_report_data(report_date: str) -> Tuple[List[Dict], str, Dict]:
+    
+    try:
+        
+        try:
+            target_date = datetime.strptime(report_date, "%d-%m-%Y").date()
+        except ValueError:
+            raise ValueError(f"Invalid date format. Expected DD-MM-YYYY, got: {report_date}")
+        
+        # Calculate previous day for "till date" 
+        previous_date = target_date - timedelta(days=1)
+        
+        with Database.get_session() as db:
+            
+            kerala_districts = [
+                "Thiruvananthapuram", "Kollam", "Pathanamthitta", "Alappuzha",
+                "Kottayam", "Idukki", "Ernakulam", "Thrissur", "Palakkad",
+                "Malappuram", "Kozhikode", "Wayanad", "Kannur", "Kasaragod"
+            ]
+            
+            district_data = []
+            totals = {
+                'cu_till_pass': 0, 'cu_till_fail': 0,
+                'bu_till_pass': 0, 'bu_till_fail': 0,
+                'cu_on_pass': 0, 'cu_on_fail': 0,
+                'bu_on_pass': 0, 'bu_on_fail': 0
+            }
+            
+            for district_name in kerala_districts:
+                # Get district ID
+                district = db.query(District).filter(District.name == district_name).first()
+                if not district:
+                    logging.warning(f"District {district_name} not found in database")
+                    # Add empty row for missing district
+                    district_data.append({
+                        'district': district_name,
+                        'cu_till_pass': 0, 'cu_till_fail': 0,
+                        'bu_till_pass': 0, 'bu_till_fail': 0,
+                        'cu_on_pass': 0, 'cu_on_fail': 0,
+                        'bu_on_pass': 0, 'bu_on_fail': 0
+                    })
+                    continue
+                
+                # Base query for EVMs in this district
+                base_query = db.query(EVMComponent).join(User, EVMComponent.current_user_id == User.id).filter(
+                    User.district_id == district.id,
+                    EVMComponent.component_type.in_([EVMComponentType.CU, EVMComponentType.BU]),
+                    EVMComponent.date_of_receipt.isnot(None),
+                    or_(
+                        EVMComponent.status == "FLC_Passed",
+                        EVMComponent.status == "FLC_Failed"
+                    )
+                )
+                
+                # EVMs checked till previous date (till date)
+                till_date_query = base_query.filter(EVMComponent.date_of_receipt <= previous_date)
+                
+                cu_till_pass = till_date_query.filter(
+                    EVMComponent.component_type == EVMComponentType.CU,
+                    EVMComponent.status == "FLC_Passed"
+                ).count()
+                
+                cu_till_fail = till_date_query.filter(
+                    EVMComponent.component_type == EVMComponentType.CU,
+                    EVMComponent.status == "FLC_Failed"
+                ).count()
+                
+                bu_till_pass = till_date_query.filter(
+                    EVMComponent.component_type == EVMComponentType.BU,
+                    EVMComponent.status == "FLC_Passed"
+                ).count()
+                
+                bu_till_fail = till_date_query.filter(
+                    EVMComponent.component_type == EVMComponentType.BU,
+                    EVMComponent.status == "FLC_Failed"
+                ).count()
+                
+                # EVMs checked on target date (on date)
+                on_date_query = base_query.filter(EVMComponent.date_of_receipt == target_date)
+                
+                cu_on_pass = on_date_query.filter(
+                    EVMComponent.component_type == EVMComponentType.CU,
+                    EVMComponent.status == "FLC_Passed"
+                ).count()
+                
+                cu_on_fail = on_date_query.filter(
+                    EVMComponent.component_type == EVMComponentType.CU,
+                    EVMComponent.status == "FLC_Failed"
+                ).count()
+                
+                bu_on_pass = on_date_query.filter(
+                    EVMComponent.component_type == EVMComponentType.BU,
+                    EVMComponent.status == "FLC_Passed"
+                ).count()
+                
+                bu_on_fail = on_date_query.filter(
+                    EVMComponent.component_type == EVMComponentType.BU,
+                    EVMComponent.status == "FLC_Failed"
+                ).count()
+                
+                # Add to district data
+                district_row = {
+                    'district': district_name,
+                    'cu_till_pass': cu_till_pass,
+                    'cu_till_fail': cu_till_fail,
+                    'bu_till_pass': bu_till_pass,
+                    'bu_till_fail': bu_till_fail,
+                    'cu_on_pass': cu_on_pass,
+                    'cu_on_fail': cu_on_fail,
+                    'bu_on_pass': bu_on_pass,
+                    'bu_on_fail': bu_on_fail
+                }
+                district_data.append(district_row)
+                
+                # Add to totals
+                totals['cu_till_pass'] += cu_till_pass
+                totals['cu_till_fail'] += cu_till_fail
+                totals['bu_till_pass'] += bu_till_pass
+                totals['bu_till_fail'] += bu_till_fail
+                totals['cu_on_pass'] += cu_on_pass
+                totals['cu_on_fail'] += cu_on_fail
+                totals['bu_on_pass'] += bu_on_pass
+                totals['bu_on_fail'] += bu_on_fail
+            
+            # Format date for report header
+            formatted_date = target_date.strftime("%d/%m/%Y")
+            
+            logging.info(f"Successfully fetched FLC data for {len(district_data)} districts on {formatted_date}")
+            return district_data, formatted_date, totals
+            
+    except ValueError as ve:
+        logging.error(f"Date parsing error: {str(ve)}")
+        raise ve
+    except Exception as e:
+        logging.error(f"Error fetching FLC report data: {str(e)}")
+        raise Exception(f"Failed to fetch FLC report data: {str(e)}")
+
+def generate_flc_report_sec(background_tasks: BackgroundTasks,report_date: str) -> str:
+    try:
+        
+        district_data, formatted_date, totals = get_flc_report_data(report_date)
+        
+        pdf_path = daily_report(district_data, formatted_date, totals)
+        background_tasks.add_task(remove_file, pdf_path)
+        logging.info(f"Successfully generated FLC daily report: {pdf_path}")
+        return FileResponse(
                 path=pdf_path,
-                filename=filename,
                 media_type='application/pdf',
-                headers={"Content-Disposition": f"attachment; filename={filename}"}
+                headers={"Content-Disposition": f"attachment; filename={pdf_path}"}
             )
-        else:
-            raise FileNotFoundError(f"Generated PDF file not found at {pdf_path}")
+        
+    except Exception as e:
+        logging.error(f"Error generating FLC daily report: {str(e)}")
+        raise Exception(f"Failed to generate FLC daily report: {str(e)}")
