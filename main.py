@@ -6,7 +6,7 @@ import uvicorn
 from routers import (auth_route,comp_route,allot_route,
                      master_route,flc_route,meta_route,
                      return_route,logs_route,announce_route,
-                     pdf_route)
+                     pdf_route,msr_route)
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -72,6 +72,7 @@ app.include_router(return_route.router,prefix="/status", tags=["status"])
 app.include_router(logs_route.router,prefix="/logs", tags=["logs"])
 app.include_router(announce_route.router, prefix="/announcements", tags=["announcements"])
 app.include_router(pdf_route.router, prefix="/pdf", tags=["pdf"])
+app.include_router(msr_route.router, prefix="/msr", tags=["msr"])
 
 @app.get("/health")
 async def health_check():
