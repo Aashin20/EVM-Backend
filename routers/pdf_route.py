@@ -15,7 +15,6 @@ from utils.delete_file import remove_file
 
 router = APIRouter()
 
-
 class Component(BaseModel):
     serial_no: str
     status: str
@@ -92,7 +91,7 @@ async def get_attendance_reg(request: Request, current_user: dict = Depends(get_
 
 @router.get("/appendix-1/{districtid}")
 @limiter.limit("5/minute")
-async def get_appendix_1(request: Request, districtid: int, background_tasks: BackgroundTasks,current_user: dict = Depends(get_current_user)):
+async def get_appendix_1(request: Request, districtid: int, background_tasks: BackgroundTasks):
     try:
         return generate_daily_flc_report(districtid, background_tasks)
     except Exception as e:
@@ -143,6 +142,6 @@ async def get_bu_flc_pdf(request: Request, district_id: str, background_tasks: B
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate BU FLC PDF"}
 
-@router.get("/flc/daily-report")
-async def get_daily_report(request: Request, background_tasks: BackgroundTasks):
-    return generate_flc_report_sec(background_tasks)
+@router.get("/flc/daily-report/{date}")
+async def get_daily_report(request: Request,date:str, background_tasks: BackgroundTasks,current_user: dict = Depends(get_current_user)):
+    return generate_flc_report_sec(background_tasks,date)
