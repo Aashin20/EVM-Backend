@@ -8,6 +8,7 @@ from core.create_allotment import create_allotment, AllotmentModel
 from utils.authtoken import get_current_user
 from typing import List, Optional
 import json
+from fastapi import BackgroundTasks
 from utils.rate_limiter import limiter
 
 router = APIRouter()
@@ -16,6 +17,7 @@ router = APIRouter()
 @limiter.limit("10/minute")
 async def allot_evm(
     request: Request,
+    background_tasks: BackgroundTasks,  
     pending_id: Optional[int] = Query(None),
     current_user: dict = Depends(get_current_user)
 ):
@@ -48,7 +50,13 @@ async def allot_evm(
     else:
         raise HTTPException(status_code=400, detail="Unsupported content type")
     
-    return create_allotment(data, current_user['user_id'], pending_id, pdf_bytes)
+    return create_allotment(
+            background_tasks=background_tasks, 
+            evm=data,                         
+            from_user_id=current_user['user_id'],            
+            pending_allotment_id=pending_id,  
+            treasury_receipt_pdf=pdf_bytes    
+        )
 
 @router.get("/pending/view")
 @limiter.limit("30/minute")
@@ -87,8 +95,8 @@ async def queue(request: Request, current_user: dict = Depends(get_current_user)
 
 @router.post("/commission")
 @limiter.limit("30/minute")
-async def evm_commissioning_route(request: Request, data: List[EVMCommissioningModel] = Body(...), current_user: dict = Depends(get_current_user)):
-    return evm_commissioning(data, current_user['user_id'])
+async def evm_commissioning_route(request: Request, background_tasks: BackgroundTasks, data: List[EVMCommissioningModel] = Body(...), current_user: dict = Depends(get_current_user)):
+    return evm_commissioning(background_tasks,data, current_user['user_id'])
 
 @router.get("/reserve")
 @limiter.limit("30/minute")
