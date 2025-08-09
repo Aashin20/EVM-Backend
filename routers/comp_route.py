@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request,BackgroundTasks
 from core.components import (new_components, ComponentModel, view_paired_cu, view_components, 
                              view_paired_bu, view_paired_cu_sec,
                              view_paired_cu_deo, view_components_sec, view_components_deo,
@@ -22,11 +22,11 @@ router = APIRouter()
 
 @router.post("/new")
 @limiter.limit("30/minute")
-async def create_new_components(request: Request, components: List[ComponentModel], order_no: str, current_user: dict = Depends(get_current_user)):
+async def create_new_components(request: Request, components: List[ComponentModel],background_tasks: BackgroundTasks, order_no: str,current_user: dict = Depends(get_current_user)):
     if current_user['role'] not in ['Developer', 'SEC','DEO', 'FLC Officer']:
         raise HTTPException(status_code=401, detail="Unauthorized access")
     else:
-        return new_components(components, order_no,current_user['user_id'])
+        return new_components(components, order_no,user_id=10,background_tasks=background_tasks)
 
 @router.get("/msr/unpaired/{component_type}/{district_id}")
 @limiter.limit("30/minute")
@@ -107,20 +107,20 @@ async def view_reserve_dmm(request: Request, current_user: dict = Depends(get_cu
 async def get_msr_details_cu(request: Request):
     return MSR_CU_DMM()
 
-@router.get("/msr/details/bu")
-@limiter.limit("30/minute")
-async def get_msr_details_bu(request: Request):
-    return MSR_BU()
+# @router.get("/msr/details/bu")
+# @limiter.limit("30/minute")
+# async def get_msr_details_bu(request: Request):
+#     return MSR_BU()
 
 @router.get("/msr/details/bu/user/")
 @limiter.limit("30/minute")
 async def get_msr_details_bu_by_user(request: Request, current_user: dict = Depends(get_current_user)):
     return MSR_BU_user(current_user['user_id'])
 
-@router.get("/msr/details/cu/user")
-@limiter.limit("30/minute")
-async def get_msr_details_cu_by_user(request: Request, current_user: dict = Depends(get_current_user)):
-    return MSR_CU_DMM_user(current_user['user_id'])
+# @router.get("/msr/details/cu/user")
+# @limiter.limit("30/minute")
+# async def get_msr_details_cu_by_user(request: Request, current_user: dict = Depends(get_current_user)):
+#     return MSR_CU_DMM_user(current_user['user_id'])
 
 @router.get("/msr/details/cu/warehouse/{warehouse_id}")
 @limiter.limit("30/minute")
