@@ -52,7 +52,7 @@ class ComponentDetail(BaseModel):
 
 
 
-def create_allotment(evm: AllotmentModel, from_user_id: int, pending_allotment_id: Optional[int], treasury_receipt_pdf: Optional[bytes] = None,background_tasks: BackgroundTasks = None):  
+def create_allotment(background_tasks: BackgroundTasks,evm: AllotmentModel, from_user_id: int, pending_allotment_id: Optional[int], treasury_receipt_pdf: Optional[bytes] = None):  
     print(f"[ALLOTMENT] Starting allotment creation for user {from_user_id}")
     with Database.get_session() as db:
         try:
