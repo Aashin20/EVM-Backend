@@ -36,7 +36,7 @@ class ReserveEVMCommissioningModel(BaseModel):
     bu_serial: List[str]
     bu_pink_paper_seals: List[str]
 
-def evm_commissioning(commissioning_list: List[EVMCommissioningModel], user_id: int,background_tasks: BackgroundTasks):
+def evm_commissioning(background_tasks: BackgroundTasks,commissioning_list: List[EVMCommissioningModel], user_id: int):
     """
     EVM Commissioning fn called by RO
     """
