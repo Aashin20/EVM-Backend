@@ -29,6 +29,8 @@ from models.users import User, District
 from sqlalchemy import and_, func
 from datetime import datetime
 from utils.delete_file import remove_file
+from sqlalchemy.orm import aliased
+from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
 
@@ -591,26 +593,25 @@ def flc_dmm(data_list: List[FLCDMMModel], user_id: int, background_tasks: Backgr
 def generate_dmm_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     try:
         with Database.get_session() as session:
-            flc_records = session.query(FLCDMMUnit).join(
-                User, FLCDMMUnit.flc_by_id == User.id
-            ).filter(
-                User.district_id == district_id
-            ).all()
+  
+            flc_records = session.query(FLCDMMUnit, EVMComponent.serial_number, EVMComponent.date_of_receipt)\
+                .join(User, FLCDMMUnit.flc_by_id == User.id)\
+                .join(EVMComponent, FLCDMMUnit.dmm_id == EVMComponent.id)\
+                .filter(User.district_id == district_id)\
+                .all()
             
             if not flc_records:
                 raise HTTPException(status_code=404, detail="No DMM FLC records found for this district")
             
-            pdf_data = []
-            for flc in flc_records:
-                dmm = session.query(EVMComponent).filter(EVMComponent.id == flc.dmm_id).first()
-                
-                pdf_data.append({
-                    "cu_number": "",
-                    "dmm_number": dmm.serial_number if dmm else "",
-                    "dmm_seal_no": "",
-                    "cu_pink_seal": "",
-                    "passed": flc.passed
-                })
+      
+            pdf_data = [{
+                "cu_number": "",
+                "dmm_number": record[1] or "",  
+                "dmm_seal_no": "",
+                "cu_pink_seal": "",
+                "passed": record[0].passed,
+                "date_of_receipt": record[2]  
+            } for record in flc_records]
             
             pdf_filename = FLC_Certificate_CU(pdf_data)
             background_tasks.add_task(remove_file, pdf_filename)
@@ -622,26 +623,25 @@ def generate_dmm_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
         logger.error(f"DMM PDF generation error: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
 
+
 def generate_bu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     try:
         with Database.get_session() as session:
-            flc_records = session.query(FLCBallotUnit).join(
-                User, FLCBallotUnit.flc_by_id == User.id
-            ).filter(
-                User.district_id == district_id
-            ).all()
+
+            flc_records = session.query(FLCBallotUnit, EVMComponent.serial_number, EVMComponent.date_of_receipt)\
+                .join(User, FLCBallotUnit.flc_by_id == User.id)\
+                .join(EVMComponent, FLCBallotUnit.bu_id == EVMComponent.id)\
+                .filter(User.district_id == district_id)\
+                .all()
             
             if not flc_records:
                 raise HTTPException(status_code=404, detail="No BU FLC records found for this district")
-            
-            pdf_data = []
-            for flc in flc_records:
-                bu = session.query(EVMComponent).filter(EVMComponent.id == flc.bu_id).first()
-                
-                pdf_data.append({
-                    "serial_number": bu.serial_number if bu else "",
-                    "passed": flc.passed
-                })
+      
+            pdf_data = [{
+                "serial_number": record[1] or "",  
+                "passed": record[0].passed,
+                "date_of_receipt": record[2] 
+            } for record in flc_records]
             
             pdf_filename = FLC_Certificate_BU(pdf_data)
             background_tasks.add_task(remove_file, pdf_filename)
@@ -653,31 +653,53 @@ def generate_bu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
         logger.error(f"BU PDF generation error: {e}")
         raise HTTPException(status_code=500, detail="PDF generation failed")
 
+
 def generate_cu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     try:
         with Database.get_session() as session:
-            flc_records = session.query(FLCRecord).join(
-                User, FLCRecord.flc_by_id == User.id
-            ).filter(
-                User.district_id == district_id
-            ).all()
+   
+            CU = aliased(EVMComponent)
+            DMM = aliased(EVMComponent) 
+            DMMSeal = aliased(EVMComponent)
+            PinkSeal = aliased(EVMComponent)
+            
+         
+            flc_records = session.query(
+                FLCRecord,
+                CU.serial_number.label('cu_serial'),
+                CU.date_of_receipt.label('cu_date'),
+                DMM.serial_number.label('dmm_serial'),
+                DMM.date_of_receipt.label('dmm_date'),
+                DMMSeal.serial_number.label('dmm_seal_serial'),
+                DMMSeal.date_of_receipt.label('dmm_seal_date'),
+                PinkSeal.serial_number.label('pink_seal_serial'),
+                PinkSeal.date_of_receipt.label('pink_seal_date')
+            )\
+            .join(User, FLCRecord.flc_by_id == User.id)\
+            .join(CU, FLCRecord.cu_id == CU.id)\
+            .join(DMM, FLCRecord.dmm_id == DMM.id)\
+            .outerjoin(DMMSeal, FLCRecord.dmm_seal_id == DMMSeal.id)\
+            .outerjoin(PinkSeal, FLCRecord.pink_paper_seal_id == PinkSeal.id)\
+            .filter(User.district_id == district_id)\
+            .all()
             
             if not flc_records:
                 raise HTTPException(status_code=404, detail="No CU FLC records found for this district")
             
+       
             pdf_data = []
-            for flc in flc_records:
-                cu = session.query(EVMComponent).filter(EVMComponent.id == flc.cu_id).first()
-                dmm = session.query(EVMComponent).filter(EVMComponent.id == flc.dmm_id).first()
-                dmm_seal = session.query(EVMComponent).filter(EVMComponent.id == flc.dmm_seal_id).first()
-                pink_seal = session.query(EVMComponent).filter(EVMComponent.id == flc.pink_paper_seal_id).first()
+            for record in flc_records:
+                flc, cu_serial, cu_date, dmm_serial, dmm_date, dmm_seal_serial, dmm_seal_date, pink_seal_serial, pink_seal_date = record
+    
+                receipt_date = cu_date or dmm_date or dmm_seal_date or pink_seal_date
                 
                 pdf_data.append({
-                    "cu_number": cu.serial_number if cu else "",
-                    "dmm_number": dmm.serial_number if dmm else "",
-                    "dmm_seal_no": dmm_seal.serial_number if dmm_seal else "",
-                    "cu_pink_seal": pink_seal.serial_number if pink_seal else "",
-                    "passed": flc.passed
+                    "cu_number": cu_serial or "",
+                    "dmm_number": dmm_serial or "",
+                    "dmm_seal_no": dmm_seal_serial or "",
+                    "cu_pink_seal": pink_seal_serial or "",
+                    "passed": flc.passed,
+                    "date_of_receipt": receipt_date
                 })
             
             pdf_filename = FLC_Certificate_CU(pdf_data)
