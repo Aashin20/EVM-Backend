@@ -18,7 +18,14 @@ class Database:
     def initialize(cls):
         try:
             url = os.getenv("DATABASE_URL")
-            cls._engine = create_engine(url)
+            cls._engine = create_engine(
+                url,
+                pool_size=20,          # Base connections
+                max_overflow=30,       # Additional connections when needed
+                pool_pre_ping=True,    # Validate connections before use
+                pool_recycle=3600,     # Recycle connections every hour
+                echo=False             # Set to True for debugging
+            )
             cls._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=cls._engine)
             return True
         except Exception as e:
