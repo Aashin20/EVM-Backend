@@ -10,13 +10,11 @@ from reportlab.lib.units import inch
 import uuid
 
 def FLC_Certificate_BU(components: List[dict]):
-    # Create document with adjusted margins
     filename = f"Annexure_3_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
                             leftMargin=0.5*inch, rightMargin=0.5*inch, 
                             topMargin=0.5*inch, bottomMargin=0.5*inch)
     
-    # Styles
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'TitleStyle',
@@ -26,10 +24,8 @@ def FLC_Certificate_BU(components: List[dict]):
         spaceAfter=6
     )
     
-    # Content elements
     elements = []
     
-    # Logo
     try:
         logo = Image("annexure/logo.png", width=1*inch, height=1*inch)
         logo.hAlign = 'CENTER'
@@ -37,47 +33,37 @@ def FLC_Certificate_BU(components: List[dict]):
     except:
         elements.append(Paragraph("LOGO", title_style))
     
-    elements.append(Spacer(1, 12))
+    elements.extend([
+        Spacer(1, 12),
+        Paragraph("Annexure III", title_style),
+        Paragraph("First Level Check", title_style),
+        Paragraph("CERTIFICATE", title_style),
+        Spacer(1, 15)
+    ])
     
-    # Title
-    title = Paragraph("Annexure III", title_style)
-    elements.append(title)
-    
-    # Main Heading
-    heading1 = Paragraph("First Level Check", title_style)
-    elements.append(heading1)
-    heading2 = Paragraph("CERTIFICATE", title_style)
-    elements.append(heading2)
-    
-    elements.append(Spacer(1, 15))
-    
-    # Current date
-    current_date = datetime.now().strftime("%d-%m-%Y")
-    
-    # Sort components: passed first, then failed
+  
     sorted_components = sorted(components, key=lambda x: (not x["passed"], x.get("serial_number", "")))
     
-    # Column headers
     headers = [
-        "SI\nNo", 
-        "BU No", 
-        "FLC Date", 
-        "FLC\nStatus\n(Passed/\nFailed)",
-        "Signature of\nECIL Engineer",
-        "Signature of\nrepresentative of\npolitical parties",
+        "SI\nNo", "BU No", "FLC Date", "FLC\nStatus\n(Passed/\nFailed)",
+        "Signature of\nECIL Engineer", "Signature of\nrepresentative of\npolitical parties",
         "Signature of\nDistrict Election\nOfficer or\nofficer\nauthorised by\nhim"
     ]
     
     index_headers = ["1", "2", "3", "4", "5", "6", "7"]
     
-    # Component table data
+ 
     comp_data = [headers, index_headers]
     
+    
     for i, comp in enumerate(sorted_components):
+        receipt_date = comp.get("date_of_receipt")
+        flc_date = receipt_date.strftime("%d-%m-%Y") if receipt_date else datetime.now().strftime("%d-%m-%Y")
+        
         comp_data.append([
             str(i+1), 
             comp["serial_number"],
-            current_date,
+            flc_date,
             "Passed" if comp["passed"] else "Failed",
             "", "", ""
         ])
@@ -86,24 +72,16 @@ def FLC_Certificate_BU(components: List[dict]):
     
     comp_table = Table(comp_data, colWidths=col_widths)
     comp_table.setStyle(TableStyle([
-        # Apply grid to all cells first
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
         ('BACKGROUND', (0, 1), (-1, 1), colors.lightgrey),
-        # Removed alternating row backgrounds - all data rows now have white background
         ('BACKGROUND', (0, 2), (-1, -1), colors.white),
-        
-        # Remove horizontal lines for signature columns (columns 4, 5, 6) in data rows
         ('LINEBELOW', (4, 2), (6, -1), 0, colors.white),
         ('LINEABOVE', (4, 3), (6, -1), 0, colors.white),
-        
-        # Remove background colors from signature columns in data rows
         ('BACKGROUND', (4, 2), (6, -1), colors.white),
-        
-        # Ensure table border (bottom line) is maintained
         ('LINEBELOW', (0, -1), (-1, -1), 0.5, colors.black),
     ]))
     elements.append(comp_table)
@@ -111,14 +89,13 @@ def FLC_Certificate_BU(components: List[dict]):
     doc.build(elements)
     return filename
 
+
 def FLC_Certificate_CU(components: List[dict]):
-    # Create document with landscape orientation
     filename = f"Annexure_3_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=landscape(A4), 
                             leftMargin=0.5*inch, rightMargin=0.5*inch, 
                             topMargin=0.5*inch, bottomMargin=0.5*inch)
     
-    # Styles
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'TitleStyle',
@@ -128,10 +105,8 @@ def FLC_Certificate_CU(components: List[dict]):
         spaceAfter=6
     )
     
-    # Content elements
     elements = []
     
-    # Logo
     try:
         logo = Image("annexure/logo.png", width=1.1*inch, height=1.1*inch)
         logo.hAlign = 'CENTER'
@@ -139,53 +114,41 @@ def FLC_Certificate_CU(components: List[dict]):
     except:
         elements.append(Paragraph("LOGO", title_style))
     
-    elements.append(Spacer(1, 12))
+    elements.extend([
+        Spacer(1, 12),
+        Paragraph("Annexure III", title_style),
+        Paragraph("First Level Check", title_style),
+        Paragraph("CERTIFICATE", title_style),
+        Spacer(1, 15)
+    ])
     
-    # Title
-    title = Paragraph("Annexure III", title_style)
-    elements.append(title)
-    
-    # Main Heading
-    heading1 = Paragraph("First Level Check", title_style)
-    elements.append(heading1)
-    heading2 = Paragraph("CERTIFICATE", title_style)
-    elements.append(heading2)
-    
-    elements.append(Spacer(1, 15))
-    
-    # Current date
-    current_date = datetime.now().strftime("%d-%m-%Y")
-    
-    # Sort components: passed first, then failed
+
     sorted_components = sorted(components, key=lambda x: (not x["passed"], x.get("cu_number", "")))
     
-    # Update column headers
     headers = [
-        "SI\nNo", 
-        "CU NO", 
-        "DMM NO", 
-        "DMM Seal\nNo", 
-        "CU Pink\nPaper Seal\nNo",
-        "FLC Date", 
-        "FLC\nStatus\n(Passed/\nFailed)",
-        "Signature of\nECIL Engineer",
+        "SI\nNo", "CU NO", "DMM NO", "DMM Seal\nNo", "CU Pink\nPaper Seal\nNo",
+        "FLC Date", "FLC\nStatus\n(Passed/\nFailed)", "Signature of\nECIL Engineer",
         "Signature of\nrepresentative of\npolitical parties",
         "Signature of\nDistrict Election\nOfficer or\nofficer\nauthorised by\nhim"
     ]
     
     index_headers = ["1", "3", "4", "5", "6", "7", "8", "9", "10", "11"]
     
-    # Component table data
+  
     comp_data = [headers, index_headers]
     
+
     for i, comp in enumerate(sorted_components):
+        receipt_date = comp.get("date_of_receipt")
+        flc_date = receipt_date.strftime("%d-%m-%Y") if receipt_date else datetime.now().strftime("%d-%m-%Y")
+        
         comp_data.append([
             str(i+1), 
             comp["cu_number"],    
             comp["dmm_number"],   
             comp["dmm_seal_no"],  
             comp["cu_pink_seal"], 
-            current_date,
+            flc_date,
             "Passed" if comp["passed"] else "Failed",
             "", "", ""
         ])
@@ -194,24 +157,16 @@ def FLC_Certificate_CU(components: List[dict]):
     
     comp_table = Table(comp_data, colWidths=col_widths)
     comp_table.setStyle(TableStyle([
-        # Apply grid to all cells first
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
         ('BACKGROUND', (0, 1), (-1, 1), colors.lightgrey),
-        # Removed alternating row backgrounds - all data rows now have white background
         ('BACKGROUND', (0, 2), (-1, -1), colors.white),
-        
-        # Remove horizontal lines for signature columns (columns 7, 8, 9) in data rows
         ('LINEBELOW', (7, 2), (9, -1), 0, colors.white),
         ('LINEABOVE', (7, 3), (9, -1), 0, colors.white),
-        
-        # Remove background colors from signature columns in data rows
         ('BACKGROUND', (7, 2), (9, -1), colors.white),
-        
-        # Ensure table border (bottom line) is maintained
         ('LINEBELOW', (0, -1), (-1, -1), 0.5, colors.black),
     ]))
     elements.append(comp_table)
