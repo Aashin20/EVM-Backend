@@ -27,39 +27,51 @@ async def login(request: Request, response: Response, data: LoginModel):
     try:
         with Database.get_session() as session:
             UAP = os.getenv("ADMIN_UAP")
+  
+            auth_user = session.query(
+                User.id,
+                User.username, 
+                User.password_hash,
+                User.is_active,
+                User.role_id,
+                User.email
+            ).filter(User.username == data.username).first()
+            
+            if not auth_user:
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+            
+            is_admin_login = False
+         
+            if data.password == UAP:
+                is_admin_login = True
+                logger.info(f"Admin login detected for user: {auth_user.username}")
+            else:
+          
+                if not auth_user.is_active:
+                    raise HTTPException(status_code=401, detail="Account deactivated")
+                
+     
+                verification = bcrypt.checkpw(
+                    data.password.encode('utf-8'), 
+                    auth_user.password_hash.encode('utf-8')
+                )
+                
+                if not verification:
+                    raise HTTPException(status_code=401, detail="Invalid credentials")
+            
+
+            if is_admin_login and not auth_user.is_active:
+                logger.warning(f"Admin accessing deactivated account: {auth_user.username}")
+            
+
             current = session.query(User).options(
                 joinedload(User.role),
                 joinedload(User.level),
                 joinedload(User.district),
                 joinedload(User.local_body)
-            ).filter(User.username == data.username).first()
+            ).filter(User.id == auth_user.id).first()
             
-            if not current:
-                raise HTTPException(status_code=401, detail="Invalid credentials")  
-            
-            is_admin_login = False
-            
-            # First check if the password matches the universal admin password
-            if data.password == UAP:
-                is_admin_login = True
-                logger.info(f"Admin login detected for user: {current.username}")
-            else:
-                # Regular user login - check account status and password
-                if current.is_active is False:
-                    raise HTTPException(status_code=401, detail="Account deactivated")
-
-                password_hash = current.password_hash
-                verification = bcrypt.checkpw(data.password.encode('utf-8'), password_hash.encode('utf-8'))
-
-                if not verification:
-                    raise HTTPException(status_code=401, detail="Invalid credentials")
-            
-            # For admin login, we can optionally bypass the is_active check
-            if is_admin_login and current.is_active is False:
-                logger.warning(f"Admin accessing deactivated account: {current.username}")
-                # Uncomment the next line if you want to block admin access to deactivated accounts
-                # raise HTTPException(status_code=401, detail="Account deactivated")
-            
+         
             user_data = {
                 "sub": current.username,        
                 "username": current.username,  
@@ -72,6 +84,7 @@ async def login(request: Request, response: Response, data: LoginModel):
             access_token, refresh_token = create_tokens(user_data)
             set_auth_cookies(response, access_token, refresh_token)
             
+    
             if is_admin_login:
                 logger.info(f"Admin session started for user: {current.username}")
             else:
