@@ -125,14 +125,14 @@ class LocalBody(Base):
     district = relationship("District", back_populates="local_bodies")
     polling_stations = relationship("PollingStation", back_populates="local_body")
     users = relationship("User", back_populates="local_body")
-    constituencies = relationship("Constituency", back_populates="local_body")  # New
+    constituencies = relationship("Constituency", back_populates="local_body")  
 
 
 
 class Constituency(Base):
     __tablename__ = 'constituencies'
 
-    id = Column(String, primary_key=True)  # e.g., "TN-123"
+    id = Column(String, primary_key=True)  
     name = Column(String, nullable=False)
 
     local_body_id = Column(String, ForeignKey('local_bodies.id'), nullable=False)
