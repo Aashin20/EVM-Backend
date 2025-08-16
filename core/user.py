@@ -6,7 +6,7 @@ import bcrypt
 from pydantic import BaseModel, constr
 from typing import Optional
 from sqlalchemy.orm import joinedload
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, func, cast, Integer
 from typing import List
 from fastapi import HTTPException, Response
 from models.users import Role
@@ -432,13 +432,17 @@ def get_deo():
             "district_id": user.district_id,
         }for user in users]
 
-def add_warehouse(dis_id:int,warehouse_name:str):
+def add_warehouse(dis_id: int, warehouse_name: str):
     with Database.get_session() as db:
         warehouse = db.query(Warehouse).filter(Warehouse.name == warehouse_name).all()
         if warehouse:
-            raise HTTPException(status_code=409,detail="Warehouse name already exists")
+            raise HTTPException(status_code=409, detail="Warehouse name already exists")
         
-        new=Warehouse(
+        max_id = db.query(func.max(cast(Warehouse.id, Integer))).scalar()
+        next_id = str((max_id or 0) + 1)
+        
+        new = Warehouse(
+            id=next_id,
             name=warehouse_name,
             district_id=dis_id
         )
