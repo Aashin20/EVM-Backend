@@ -153,7 +153,7 @@ def FLC_Certificate_CU(components: List[dict]):
             "", "", ""
         ])
     
-    col_widths = [35, 80, 80, 80, 80, 80, 80, 90, 90, 90]
+    col_widths = [35, 85, 100, 100, 100, 80, 80, 75, 75, 75]
     
     comp_table = Table(comp_data, colWidths=col_widths)
     comp_table.setStyle(TableStyle([
