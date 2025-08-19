@@ -657,13 +657,12 @@ def generate_bu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
 def generate_cu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
     try:
         with Database.get_session() as session:
-   
             CU = aliased(EVMComponent)
             DMM = aliased(EVMComponent) 
             DMMSeal = aliased(EVMComponent)
             PinkSeal = aliased(EVMComponent)
             
-         
+            
             flc_records = session.query(
                 FLCRecord,
                 CU.serial_number.label('cu_serial'),
@@ -677,7 +676,7 @@ def generate_cu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
             )\
             .join(User, FLCRecord.flc_by_id == User.id)\
             .join(CU, FLCRecord.cu_id == CU.id)\
-            .join(DMM, FLCRecord.dmm_id == DMM.id)\
+            .outerjoin(DMM, FLCRecord.dmm_id == DMM.id)\
             .outerjoin(DMMSeal, FLCRecord.dmm_seal_id == DMMSeal.id)\
             .outerjoin(PinkSeal, FLCRecord.pink_paper_seal_id == PinkSeal.id)\
             .filter(User.district_id == district_id)\
@@ -686,11 +685,11 @@ def generate_cu_flc_pdf(district_id: int, background_tasks: BackgroundTasks):
             if not flc_records:
                 raise HTTPException(status_code=404, detail="No CU FLC records found for this district")
             
-       
             pdf_data = []
             for record in flc_records:
                 flc, cu_serial, cu_date, dmm_serial, dmm_date, dmm_seal_serial, dmm_seal_date, pink_seal_serial, pink_seal_date = record
-    
+                
+               
                 receipt_date = cu_date or dmm_date or dmm_seal_date or pink_seal_date
                 
                 pdf_data.append({
