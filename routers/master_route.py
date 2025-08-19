@@ -25,13 +25,21 @@ async def register_user(request: Request, details: RegisterModel, current_user: 
     else:
         return register(details)
 
-@router.get("/user/view") #SEC ONLY
+@router.get("/users")
 @limiter.limit("30/minute")
-async def view(request: Request, current_user: dict = Depends(get_current_user)):
+async def view(
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number starting from 1"),
+    limit: int = Query(10, ge=1, le=100, description="Number of items per page (max 100)"),
+    username: Optional[str] = Query(None, description="Filter by username (partial match)"),
+    district_id: Optional[int] = Query(None, description="Filter by district ID"),
+    role: Optional[str] = Query(None, description="Filter by role name (partial match)"),
+    current_user: dict = Depends(get_current_user)
+):
     if current_user['role'] not in ['Developer', 'SEC']:
         return {"status": 401, "message": "Unauthorized access"}
     else:
-        return view_users()
+        return view_users(page,limit,username,district_id,role)
 
 @router.post("/user/edit")
 @limiter.limit("30/minute")
