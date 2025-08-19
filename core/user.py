@@ -14,6 +14,10 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import traceback
 from utils.authtoken import create_tokens
+from fastapi import HTTPException, Query
+from typing import Optional
+from sqlalchemy.orm import joinedload
+from sqlalchemy import and_, func, select
 
 class RegisterModel(BaseModel):
     username: constr(strip_whitespace=True, min_length=3)
@@ -85,16 +89,67 @@ def register(details: RegisterModel):
         "user_id": user_id
     }
 
-def view_users():
+def view_users(
+    page: int,
+    limit: int ,
+    username: Optional[str],
+    district_id: Optional[int] ,
+    role: Optional[str]
+):
+   
     with Database.get_session() as session:
-        users = session.query(User).all()
-        if not users:
-            raise HTTPException(status_code=404,detail="No users found")
-        return [
+  
+        base_query = session.query(User).join(User.role).filter(User.id.notin_([1, 2]))
+        
+
+        filters = []
+        if username:
+            filters.append(User.username.ilike(f"%{username}%"))
+        if district_id:
+            filters.append(User.district_id == district_id)
+        if role:
+            filters.append(User.role.has(Role.name.ilike(f"%{role}%")))
+        
+        if filters:
+            base_query = base_query.filter(and_(*filters))
+        
+    
+        count_query = session.query(func.count(User.id)).filter(User.id.notin_([1, 2]))
+        if filters:
+            count_query = count_query.join(User.role).filter(and_(*filters))
+        total_count = count_query.scalar()
+        
+        
+        if total_count == 0:
+            return {
+                "users": [],
+                "pagination": {
+                    "current_page": page,
+                    "per_page": limit,
+                    "total_items": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_prev": False
+                },
+                "filters": {"username": username, "district_id": district_id, "role": role}
+            }
+        
+        total_pages = (total_count + limit - 1) // limit
+        offset = (page - 1) * limit
+        
+
+        users = base_query.options(
+            joinedload(User.created_by),
+            joinedload(User.updated_by),
+            joinedload(User.role)
+        ).order_by(User.id).offset(offset).limit(limit).all()
+        
+
+        user_list = [
             {
                 "id": user.id,
                 "name": user.username,
-                "email" : user.email,
+                "email": user.email,
                 "created_by": user.created_by.username if user.created_by else None,
                 "updated_by": user.updated_by.username if user.updated_by else None,
                 "updated_at": user.updated_at,
@@ -103,9 +158,21 @@ def view_users():
                 "role": user.role.name,
                 "district_id": user.district_id,
                 "local_body_id": user.local_body_id,
-              
             } for user in users
         ]
+        
+        return {
+            "users": user_list,
+            "pagination": {
+                "current_page": page,
+                "per_page": limit,
+                "total_items": total_count,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1
+            },
+            "filters": {"username": username, "district_id": district_id, "role": role}
+        }
     
 def edit_user(details: UpdateUserModel):
     with Database.get_session() as session:
