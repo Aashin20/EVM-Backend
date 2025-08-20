@@ -4,25 +4,33 @@ from fastapi import APIRouter, Depends, Request
 from typing import List
 from core.return_ import return_pending, return_queue, return_to_ecil
 from utils.rate_limiter import limiter
+from utils.cache_decorator import cache_response
+from utils.redis import RedisClient
 
 router = APIRouter()
 
 @router.get('/change/{local_body_id}/{status}') #Used to change status of EVMs(Polling,Polled,Counted)
 @limiter.limit("30/minute")
 async def to_polling(request: Request, local_body_id: str, status: str, current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("comp*") 
     return status_change(local_body_id, status)
 
 @router.post('/decommission')
 @limiter.limit("30/minute")
 async def evm_decommission(request: Request, data: DecommissionModel, current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("comp*") 
+    await RedisClient.delete_pattern("allot*") 
     return decommission_evms(data)
 
 @router.get("/return/pending")
 @limiter.limit("30/minute")
 async def return_pending_send(request: Request, current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("comp*") 
+    await RedisClient.delete_pattern("allot*") 
     return return_pending(current_user['user_id'])
 
 @router.get("/return/queue")
+@cache_response(expire=3600, key_prefix="allot_return", include_user=True)
 @limiter.limit("30/minute")
 async def return_queue_view(request: Request, current_user: dict = Depends(get_current_user)):
     return return_queue()
@@ -30,4 +38,6 @@ async def return_queue_view(request: Request, current_user: dict = Depends(get_c
 @router.get("/return/to_ecil/{comp_serial}")
 @limiter.limit("30/minute")
 async def return_to_ecil_route(request: Request, comp_serial: str, current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("comp*") 
+    await RedisClient.delete_pattern("allot*") 
     return return_to_ecil(comp_serial)
