@@ -12,6 +12,8 @@ from utils.rate_limiter import limiter
 from core.flc import generate_dmm_flc_pdf,generate_bu_flc_pdf,generate_cu_flc_pdf
 from annexure.box_wise_sticker import Box_wise_sticker
 from utils.delete_file import remove_file
+from utils.redis import RedisClient
+from utils.cache_decorator import cache_response
 
 router = APIRouter()
 
@@ -80,11 +82,13 @@ async def get_flc_template(request: Request, component_type: str, current_user: 
     return FileResponse(path=f"templates/FLC_{component_type}.xlsx", media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename=f"FLC_{component_type}")
 
 @router.get("/annexure-2")
+@cache_response(expire=86400, key_prefix="pdf_annex_2", include_user=False)
 @limiter.limit("5/minute")
 async def get_attendance_reg(request: Request, current_user: dict = Depends(get_current_user)):
     return FileResponse(path="templates/Attendance.pdf", media_type="application/pdf", filename="Annexure-II")
 
 @router.get("/annexure-4")
+@cache_response(expire=86400, key_prefix="pdf_annex_2", include_user=False)
 @limiter.limit("5/minute")
 async def get_attendance_reg(request: Request, current_user: dict = Depends(get_current_user)):
     return FileResponse(path="templates/Physical_Verification.pdf", media_type="application/pdf", filename="Annexure-IV")
