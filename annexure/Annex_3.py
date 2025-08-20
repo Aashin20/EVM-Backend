@@ -4,16 +4,59 @@ from reportlab.platypus import (Table, TableStyle, Paragraph,
                                 SimpleDocTemplate, Spacer, Image)
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
+from reportlab.pdfgen import canvas
 from datetime import datetime
 from typing import List
 from reportlab.lib.units import inch
 import uuid
+import os
+
+class WatermarkCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        canvas.Canvas.__init__(self, *args, **kwargs)
+        self.page_count = 0
+    
+    def showPage(self):
+        self.page_count += 1
+      
+        if self.page_count > 1:
+            self._add_watermark()
+        canvas.Canvas.showPage(self)
+    
+    def _add_watermark(self):
+        watermark_path = "annexure/logo_wm.png"
+        if not os.path.exists(watermark_path):
+            raise FileNotFoundError(f"Watermark image not found: {watermark_path}")
+        
+        self.saveState()
+        
+
+        page_width, page_height = self._pagesize
+        
+        
+        watermark_width = 4 * inch  
+        watermark_height = 4 * inch  
+     
+        x = (page_width - watermark_width) / 2
+        y = (page_height - watermark_height) / 2
+
+        self.setFillAlpha(0.17)
+        self.setStrokeAlpha(0.17)
+        
+      
+        self.drawImage(watermark_path, x, y, 
+                      width=watermark_width, 
+                      height=watermark_height,
+                      preserveAspectRatio=True,
+                      mask='auto')
+        
+        self.restoreState()
 
 def FLC_Certificate_BU(components: List[dict]):
     filename = f"Annexure_3_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=A4, 
-                            leftMargin=0.5*inch, rightMargin=0.5*inch, 
-                            topMargin=0.5*inch, bottomMargin=0.5*inch)
+                           leftMargin=0.5*inch, rightMargin=0.5*inch, 
+                           topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -41,7 +84,6 @@ def FLC_Certificate_BU(components: List[dict]):
         Spacer(1, 15)
     ])
     
-  
     sorted_components = sorted(components, key=lambda x: (not x["passed"], x.get("serial_number", "")))
     
     headers = [
@@ -52,9 +94,7 @@ def FLC_Certificate_BU(components: List[dict]):
     
     index_headers = ["1", "2", "3", "4", "5", "6", "7"]
     
- 
     comp_data = [headers, index_headers]
-    
     
     for i, comp in enumerate(sorted_components):
         receipt_date = comp.get("date_of_receipt")
@@ -86,15 +126,14 @@ def FLC_Certificate_BU(components: List[dict]):
     ]))
     elements.append(comp_table)
     
-    doc.build(elements)
+    doc.build(elements, canvasmaker=WatermarkCanvas)
     return filename
-
 
 def FLC_Certificate_CU(components: List[dict]):
     filename = f"Annexure_3_{uuid.uuid4().hex[:8]}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=landscape(A4), 
-                            leftMargin=0.5*inch, rightMargin=0.5*inch, 
-                            topMargin=0.5*inch, bottomMargin=0.5*inch)
+                           leftMargin=0.5*inch, rightMargin=0.5*inch, 
+                           topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -122,7 +161,6 @@ def FLC_Certificate_CU(components: List[dict]):
         Spacer(1, 15)
     ])
     
-
     sorted_components = sorted(components, key=lambda x: (not x["passed"], x.get("cu_number", "")))
     
     headers = [
@@ -134,10 +172,8 @@ def FLC_Certificate_CU(components: List[dict]):
     
     index_headers = ["1", "3", "4", "5", "6", "7", "8", "9", "10", "11"]
     
-  
     comp_data = [headers, index_headers]
     
-
     for i, comp in enumerate(sorted_components):
         receipt_date = comp.get("date_of_receipt")
         flc_date = receipt_date.strftime("%d-%m-%Y") if receipt_date else datetime.now().strftime("%d-%m-%Y")
@@ -171,5 +207,5 @@ def FLC_Certificate_CU(components: List[dict]):
     ]))
     elements.append(comp_table)
     
-    doc.build(elements)
+    doc.build(elements, canvasmaker=WatermarkCanvas)
     return filename
