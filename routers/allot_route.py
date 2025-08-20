@@ -10,6 +10,8 @@ from typing import List, Optional
 import json
 from fastapi import BackgroundTasks
 from utils.rate_limiter import limiter
+from utils.cache_decorator import cache_response
+from utils.redis import RedisClient
 
 router = APIRouter()
 
@@ -49,7 +51,7 @@ async def allot_evm(
     
     else:
         raise HTTPException(status_code=400, detail="Unsupported content type")
-    
+    await RedisClient.delete_pattern("allot*") 
     return create_allotment(
             background_tasks=background_tasks, 
             evm=data,                         
@@ -59,16 +61,20 @@ async def allot_evm(
         )
 
 @router.get("/pending/view")
+@cache_response(expire=3600, key_prefix="allot_pending_view", include_user=True)
 @limiter.limit("30/minute")
 async def pending_view(request: Request, current_user: dict = Depends(get_current_user)):
+    
     return view_pending_allotments(current_user['user_id'])
 
 @router.post("/pending")
 @limiter.limit("30/minute")
 async def pending_create(request: Request, data: AllotmentModel, current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("allot*") 
     return pending(data, current_user['user_id'])
 
 @router.get("/pending/components/{pending_id}")
+@cache_response(expire=3600, key_prefix="allot_pending_components", include_user=True)
 @limiter.limit("30/minute")
 async def view_pending_comp(request: Request, pending_id: int, current_user: dict = Depends(get_current_user)):
     return view_pending_allotment_components(pending_id, current_user['user_id'])
@@ -76,19 +82,26 @@ async def view_pending_comp(request: Request, pending_id: int, current_user: dic
 @router.get("/pending/remove/{pending_id}")
 @limiter.limit("30/minute")
 async def remove_pending(request: Request, pending_id: int, current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("allot*")
+    await RedisClient.delete_pattern("comp*") 
     return remove_pending_allotment(pending_id, current_user['user_id'])
 
 @router.get("/approve/{allotment_id}")
 @limiter.limit("30/minute")
 async def approve(request: Request, allotment_id: int, current_user: dict = Depends(get_current_user)):  
+    await RedisClient.delete_pattern("allot*")
+    await RedisClient.delete_pattern("comp*")
     return approve_allotment(allotment_id, current_user['user_id'])
 
 @router.get("/reject/{allotment_id}/{reject_reason}")
 @limiter.limit("30/minute")
 async def reject(request: Request, allotment_id: int, reject_reason: str, current_user: dict = Depends(get_current_user)):  
+    await RedisClient.delete_pattern("allot*")
+    await RedisClient.delete_pattern("comp*")
     return reject_allotment(allotment_id, reject_reason, current_user['user_id'])
 
 @router.get("/queue/")
+@cache_response(expire=3600, key_prefix="allot_queue", include_user=True)
 @limiter.limit("30/minute")
 async def queue(request: Request, current_user: dict = Depends(get_current_user)):
     return approval_queue(current_user['user_id'])
@@ -96,9 +109,12 @@ async def queue(request: Request, current_user: dict = Depends(get_current_user)
 @router.post("/commission")
 @limiter.limit("30/minute")
 async def evm_commissioning_route(request: Request, background_tasks: BackgroundTasks, data: List[EVMCommissioningModel] = Body(...), current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("allot*")
+    await RedisClient.delete_pattern("comp*")
     return evm_commissioning(background_tasks,data, current_user['user_id'])
 
 @router.get("/reserve")
+@cache_response(expire=3600, key_prefix="allot_view_reserve", include_user=True)
 @limiter.limit("30/minute")
 async def reserve_view(request: Request, current_user: dict = Depends(get_current_user)):
     return view_reserve(current_user['user_id'])
@@ -106,9 +122,12 @@ async def reserve_view(request: Request, current_user: dict = Depends(get_curren
 @router.post("/reserve/allot")
 @limiter.limit("30/minute")
 async def allot_reserve_evm(request: Request, data: ReserveEVMCommissioningModel, psno: int, current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("allot*")
+    await RedisClient.delete_pattern("comp*")
     return allot_reserve_evm_to_polling_station(data, psno, current_user['user_id'])
 
 @router.get("/temporary")
+@cache_response(expire=3600, key_prefix="allot_view_temp", include_user=True)
 async def view_temporary_allotments(request: Request, current_user: dict = Depends(get_current_user)):
     return view_temporary(current_user['user_id'])
 
@@ -117,4 +136,6 @@ async def view_temporary_allotments(request: Request, current_user: dict = Depen
 async def return_temporary(request: Request, allotment_id: int, return_date: str, current_user: dict = Depends(get_current_user)):
     if not allotment_id or not return_date:
         raise HTTPException(status_code=400, detail="Allotment ID and return date are required")
+    await RedisClient.delete_pattern("allot*")
+    await RedisClient.delete_pattern("comp*")
     return return_temporary_allotment(allotment_id, return_date, current_user['user_id'])
