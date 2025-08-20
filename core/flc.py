@@ -794,81 +794,66 @@ def view_flc_components(component_type: str, district_id: int):
         return flc_records
    
 def view_all_districts_flc_summary() -> Dict[str, Any]:
-    
     with Database.get_session() as session:
-        districts = session.query(District).all()
+        results = session.query(
+            District.id.label('district_id'),
+            District.name.label('district_name'),
+            EVMComponent.component_type,
+            EVMComponent.status,
+            func.count(EVMComponent.id).label('count')
+        ).join(
+            User, EVMComponent.current_user_id == User.id
+        ).join(
+            District, User.district_id == District.id
+        ).filter(
+            EVMComponent.component_type.in_(["CU", "BU"]),
+            EVMComponent.status.in_(["FLC_Passed", "FLC_Failed", "FLC_Pending"])
+        ).group_by(
+            District.id,
+            District.name,
+            EVMComponent.component_type,
+            EVMComponent.status
+        ).order_by(District.name).all()
         
-        if not districts:
+        if not results:
             raise HTTPException(status_code=204, detail="No districts found")
         
-        # Initialize response structure similar to sec_dashboard
         response = {
             "CU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
             "BU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
-            "totals": {
-                "FLC_Pending": 0,
-                "FLC_Passed": 0,
-                "FLC_Failed": 0
-            },
+            "totals": {"FLC_Pending": 0, "FLC_Passed": 0, "FLC_Failed": 0},
             "districts": []
         }
         
-        for district in districts:
-            # Query database directly for this district, joining with User to get district info
-            district_results = session.query(
-                EVMComponent.component_type,
-                EVMComponent.status,
-                func.count(EVMComponent.id).label('count')
-            ).join(
-                User, EVMComponent.current_user_id == User.id
-            ).filter(
-                EVMComponent.component_type.in_(["CU", "BU"]),
-                User.district_id == district.id
-            ).group_by(
-                EVMComponent.component_type,
-                EVMComponent.status
-            ).all()
-            
-            # Initialize district data structure
-            district_data = {
-                "district_id": district.id,
-                "district_name": district.name,
-                "CU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
-                "BU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
-                "totals": {
-                    "FLC_Pending": 0,
-                    "FLC_Passed": 0,
-                    "FLC_Failed": 0
+        districts_data = {}
+        
+        for district_id, district_name, component_type, status, count in results:
+            if district_id not in districts_data:
+                districts_data[district_id] = {
+                    "district_id": district_id,
+                    "district_name": district_name,
+                    "CU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+                    "BU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
+                    "totals": {"FLC_Pending": 0, "FLC_Passed": 0, "FLC_Failed": 0}
                 }
+            
+            district_data = districts_data[district_id]
+            
+            district_data[component_type]["total"] += count
+            response[component_type]["total"] += count
+            
+            status_map = {
+                "FLC_Passed": ("passed", "FLC_Passed"),
+                "FLC_Failed": ("failed", "FLC_Failed"), 
+                "FLC_Pending": ("pending", "FLC_Pending")
             }
             
-            # Process results using same logic as sec_dashboard
-            for component_type, status, count in district_results:
-                district_data[component_type]["total"] += count
-                
-                if status == "FLC_Passed":
-                    district_data[component_type]["passed"] = count
-                    district_data["totals"]["FLC_Passed"] += count
-                elif status == "FLC_Failed":
-                    district_data[component_type]["failed"] = count
-                    district_data["totals"]["FLC_Failed"] += count
-                elif status == "FLC_Pending":
-                    district_data[component_type]["pending"] = count
-                    district_data["totals"]["FLC_Pending"] += count
-                
-                # Update overall response totals
-                response[component_type]["total"] += count
-                
-                if status == "FLC_Passed":
-                    response[component_type]["passed"] += count
-                    response["totals"]["FLC_Passed"] += count
-                elif status == "FLC_Failed":
-                    response[component_type]["failed"] += count
-                    response["totals"]["FLC_Failed"] += count
-                elif status == "FLC_Pending":
-                    response[component_type]["pending"] += count
-                    response["totals"]["FLC_Pending"] += count
-            
-            response["districts"].append(district_data)
+            if status in status_map:
+                local_key, total_key = status_map[status]
+                district_data[component_type][local_key] += count
+                district_data["totals"][total_key] += count
+                response[component_type][local_key] += count
+                response["totals"][total_key] += count
         
+        response["districts"] = list(districts_data.values())
         return response
