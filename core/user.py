@@ -207,26 +207,41 @@ def edit_user(details: UpdateUserModel):
         
         return Response(status_code=200)
     
-def get_local_body(district_id: int,type: str):
+def get_local_body(district_id: int, type: str):
     with Database.get_session() as session:
-        local_body = session.query(LocalBody).filter(
-            LocalBody.district_id == district_id,
-            LocalBody.type == type
-        ).all()
+        local_bodies = (
+            session.query(LocalBody.id, LocalBody.name)
+            .filter(
+                LocalBody.district_id == district_id,
+                LocalBody.type == type
+            )
+            .order_by(LocalBody.name)
+            .all()
+        )
         
-        if not local_body:
-            raise HTTPException(status_code=204,detail="No local body found")
+        if not local_bodies:
+            raise HTTPException(status_code=204, detail="No local body found")
+        
+        local_body_ids = [lb.id for lb in local_bodies]
+        
+        users = (
+            session.query(User.id, User.local_body_id)
+            .filter(User.local_body_id.in_(local_body_ids))
+            .all()
+        )
+        
+        user_map = {}
+        for user in users:
+            if user.local_body_id not in user_map:
+                user_map[user.local_body_id] = []
+            user_map[user.local_body_id].append({"id": user.id})
         
         return [
             {
                 "id": lb.id,
                 "name": lb.name,
-                "users": [
-                    {
-                        "id": user.id,
-                    } for user in lb.users
-                ]
-            } for lb in local_body
+                "users": user_map.get(lb.id, [])
+            } for lb in local_bodies
         ]
     
 
@@ -247,22 +262,40 @@ def get_districts():
 def get_panchayath(block_id: str):
     block = block_id[:5]
     with Database.get_session() as session:
-        panchayath = session.query(LocalBody).filter(
-            LocalBody.id.startswith(block),
-            LocalBody.type == LocalBodyType.Grama_Panchayat
-        ).all()
-        if not panchayath:
-            raise HTTPException(status_code=204,detail="No panchayaths found")
+        panchayaths = (
+            session.query(LocalBody.id, LocalBody.name)
+            .filter(
+                LocalBody.id >= block,
+                LocalBody.id < block + 'z',
+                LocalBody.type == LocalBodyType.Grama_Panchayat
+            )
+            .order_by(LocalBody.name)
+            .all()
+        )
+        
+        if not panchayaths:
+            raise HTTPException(status_code=204, detail="No panchayaths found")
+        
+        panchayath_ids = [p.id for p in panchayaths]
+        
+        users = (
+            session.query(User.id, User.local_body_id)
+            .filter(User.local_body_id.in_(panchayath_ids))
+            .all()
+        )
+        
+        user_map = {}
+        for user in users:
+            if user.local_body_id not in user_map:
+                user_map[user.local_body_id] = []
+            user_map[user.local_body_id].append({"id": user.id})
+        
         return [
             {
-                "id": lb.id,
-                "name": lb.name,
-                "users": [
-                    {
-                        "id": user.id,
-                    } for user in lb.users
-                ]
-            } for lb in panchayath
+                "id": p.id,
+                "name": p.name,
+                "users": user_map.get(p.id, [])
+            } for p in panchayaths
         ]
     
 def get_user(local_body_id: str):
@@ -485,26 +518,37 @@ def mass_deactivate(role_name: str, user_id:int):
 
 def get_warehouse(district: int):
     with Database.get_session() as db:
-        warehouses = db.query(Warehouse).filter(Warehouse.district_id==district).all()
-
-        return [{
-            "id":ware.id,
-            "name": ware.name,
-        }for ware in warehouses]
+        results = (
+            db.query(Warehouse.id, Warehouse.name)
+            .filter(Warehouse.district_id == district)
+            .order_by(Warehouse.name)
+            .all()
+        )
+        
+        return [{"id": row.id, "name": row.name} for row in results]
 
 def get_deo():
     with Database.get_session() as session:
-        users = session.query(User).options(
-            joinedload(User.district)
-        ).filter(User.role_id == 2).all()
-        if not users:
-            raise HTTPException(status_code=204,detail="No users found")
+        results = (
+            session.query(
+                User.id,
+                User.district_id,
+                District.name.label('district_name')
+            )
+            .join(District, User.district_id == District.id)
+            .filter(User.role_id == 2)
+            .order_by(District.name)
+            .all()
+        )
+        
+        if not results:
+            raise HTTPException(status_code=204, detail="No users found")
         
         return [{
-            "id": user.id,
-            "name": user.district.name,
-            "district_id": user.district_id,
-        }for user in users]
+            "id": row.id,
+            "name": row.district_name,
+            "district_id": row.district_id,
+        } for row in results]
 
 def add_warehouse(dis_id: int, warehouse_name: str):
     with Database.get_session() as db:
