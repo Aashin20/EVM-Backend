@@ -70,30 +70,34 @@ def pending(evm: AllotmentModel, from_user_id: int):
 def view_pending_allotments(user_id: int):
     with Database.get_session() as db:
         from sqlalchemy.orm import joinedload
+        from sqlalchemy import func
         
-        pending_allotments = db.query(AllotmentPending).options(
+        component_subquery = db.query(
+            AllotmentItemPending.allotment_pending_id,
+            func.min(EVMComponent.component_type).label('component_type')
+        ).join(
+            EVMComponent, EVMComponent.id == AllotmentItemPending.evm_component_id
+        ).group_by(AllotmentItemPending.allotment_pending_id).subquery()
+        
+        pending_allotments = db.query(
+            AllotmentPending,
+            component_subquery.c.component_type
+        ).options(
             joinedload(AllotmentPending.from_local_body),
             joinedload(AllotmentPending.to_local_body),
             joinedload(AllotmentPending.from_district),
             joinedload(AllotmentPending.to_district),
             joinedload(AllotmentPending.to_user)
+        ).outerjoin(
+            component_subquery, 
+            AllotmentPending.id == component_subquery.c.allotment_pending_id
         ).filter(
             AllotmentPending.from_user_id == user_id,
             AllotmentPending.status == "pending"
         ).all()
         
         result = []
-        for allotment in pending_allotments:
-            # Get component type of first component for this pending allotment
-            first_component = db.query(EVMComponent.component_type).join(
-                AllotmentItemPending, 
-                EVMComponent.id == AllotmentItemPending.evm_component_id
-            ).filter(
-                AllotmentItemPending.allotment_pending_id == allotment.id
-            ).first()
-            
-            component_type = first_component.component_type if first_component else None
-            
+        for allotment, component_type in pending_allotments:
             result.append({
                 "id": allotment.id,
                 "allotment_type": allotment.allotment_type,
@@ -104,7 +108,7 @@ def view_pending_allotments(user_id: int):
                 "to_local_body_name": allotment.to_local_body.name if allotment.to_local_body else None,
                 "from_district_name": allotment.from_district.name if allotment.from_district else None,
                 "to_district_name": allotment.to_district.name if allotment.to_district else None,
-                "component_type": component_type,  # Single component type
+                "component_type": component_type,
                 "created_at": allotment.created_at,
             })
         
