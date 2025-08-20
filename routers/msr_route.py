@@ -8,12 +8,14 @@ from sqlalchemy.orm import aliased
 from core.paginated import MSR_CU_DMM_PAGINATED, MSRFilters, MSRResponse,MSR_BU_PAGINATED, MSRBUFilters, MSRBUResponse
 from utils.rate_limiter import limiter
 from utils.authtoken import get_current_user
+from utils.cache_decorator import cache_response
 
 
 router = APIRouter()
 
 @router.get("/details/cu", response_model=MSRResponse)
 @limiter.limit("30/minute")
+@cache_response(expire=3600, key_prefix="comp_msr_sec_cu", include_user=True)
 async def get_msr_details_cu_paginated(
     request: Request,
     limit: int = Query(default=500, le=1000, ge=1),
@@ -66,6 +68,7 @@ async def get_msr_details_cu_paginated(
 
 @router.get("/details/bu", response_model=MSRBUResponse)
 @limiter.limit("30/minute")
+@cache_response(expire=3600, key_prefix="comp_msr_sec_bu", include_user=True)
 async def get_msr_details_bu_paginated(
     request: Request,
     limit: int = Query(default=500, le=1000, ge=1),
