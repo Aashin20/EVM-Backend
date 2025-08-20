@@ -95,7 +95,7 @@ async def get_attendance_reg(request: Request, current_user: dict = Depends(get_
 
 @router.get("/appendix-1/{districtid}")
 @limiter.limit("5/minute")
-async def get_appendix_1(request: Request, districtid: int, background_tasks: BackgroundTasks):
+async def get_appendix_1(request: Request, districtid: int, background_tasks: BackgroundTasks,current_user: dict = Depends(get_current_user)):
     try:
         return generate_daily_flc_report(districtid, background_tasks)
     except Exception as e:
