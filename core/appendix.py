@@ -286,26 +286,51 @@ def generate_appendix3_for_district(
 
 
 def get_flc_report_data(report_date: str) -> Tuple[List[Dict], str, Dict]:
-    
     try:
-        
         try:
             target_date = datetime.strptime(report_date, "%d-%m-%Y").date()
         except ValueError:
             raise ValueError(f"Invalid date format. Expected DD-MM-YYYY, got: {report_date}")
         
-        # Calculate previous day for "till date" 
         previous_date = target_date - timedelta(days=1)
         
         with Database.get_session() as db:
-            
             kerala_districts = [
                 "Thiruvananthapuram", "Kollam", "Pathanamthitta", "Alappuzha",
                 "Kottayam", "Idukki", "Ernakulam", "Thrissur", "Palakkad",
                 "Malappuram", "Kozhikode", "Wayanad", "Kannur", "Kasaragod"
             ]
             
-            district_data = []
+            results = db.query(
+                District.name.label('district_name'),
+                EVMComponent.component_type,
+                EVMComponent.status,
+                EVMComponent.date_of_receipt,
+                func.count(EVMComponent.id).label('count')
+            ).join(
+                User, EVMComponent.current_user_id == User.id
+            ).join(
+                District, User.district_id == District.id
+            ).filter(
+                District.name.in_(kerala_districts),
+                EVMComponent.component_type.in_([EVMComponentType.CU, EVMComponentType.BU]),
+                EVMComponent.date_of_receipt.isnot(None),
+                EVMComponent.status.in_(["FLC_Passed", "FLC_Failed"]),
+                EVMComponent.date_of_receipt <= target_date
+            ).group_by(
+                District.name,
+                EVMComponent.component_type,
+                EVMComponent.status,
+                EVMComponent.date_of_receipt
+            ).all()
+            
+            district_stats = {name: {
+                'cu_till_pass': 0, 'cu_till_fail': 0,
+                'bu_till_pass': 0, 'bu_till_fail': 0,
+                'cu_on_pass': 0, 'cu_on_fail': 0,
+                'bu_on_pass': 0, 'bu_on_fail': 0
+            } for name in kerala_districts}
+            
             totals = {
                 'cu_till_pass': 0, 'cu_till_fail': 0,
                 'bu_till_pass': 0, 'bu_till_fail': 0,
@@ -313,103 +338,26 @@ def get_flc_report_data(report_date: str) -> Tuple[List[Dict], str, Dict]:
                 'bu_on_pass': 0, 'bu_on_fail': 0
             }
             
-            for district_name in kerala_districts:
-                # Get district ID
-                district = db.query(District).filter(District.name == district_name).first()
-                if not district:
-                    logging.warning(f"District {district_name} not found in database")
-                    # Add empty row for missing district
-                    district_data.append({
-                        'district': district_name,
-                        'cu_till_pass': 0, 'cu_till_fail': 0,
-                        'bu_till_pass': 0, 'bu_till_fail': 0,
-                        'cu_on_pass': 0, 'cu_on_fail': 0,
-                        'bu_on_pass': 0, 'bu_on_fail': 0
-                    })
+            for district_name, component_type, status, date_of_receipt, count in results:
+                comp_key = 'cu' if component_type == EVMComponentType.CU else 'bu'
+                status_key = 'pass' if status == "FLC_Passed" else 'fail'
+                
+                if date_of_receipt == target_date:
+                    key = f"{comp_key}_on_{status_key}"
+                elif date_of_receipt <= previous_date:
+                    key = f"{comp_key}_till_{status_key}"
+                else:
                     continue
                 
-                # Base query for EVMs in this district
-                base_query = db.query(EVMComponent).join(User, EVMComponent.current_user_id == User.id).filter(
-                    User.district_id == district.id,
-                    EVMComponent.component_type.in_([EVMComponentType.CU, EVMComponentType.BU]),
-                    EVMComponent.date_of_receipt.isnot(None),
-                    or_(
-                        EVMComponent.status == "FLC_Passed",
-                        EVMComponent.status == "FLC_Failed"
-                    )
-                )
-                
-                # EVMs checked till previous date (till date)
-                till_date_query = base_query.filter(EVMComponent.date_of_receipt <= previous_date)
-                
-                cu_till_pass = till_date_query.filter(
-                    EVMComponent.component_type == EVMComponentType.CU,
-                    EVMComponent.status == "FLC_Passed"
-                ).count()
-                
-                cu_till_fail = till_date_query.filter(
-                    EVMComponent.component_type == EVMComponentType.CU,
-                    EVMComponent.status == "FLC_Failed"
-                ).count()
-                
-                bu_till_pass = till_date_query.filter(
-                    EVMComponent.component_type == EVMComponentType.BU,
-                    EVMComponent.status == "FLC_Passed"
-                ).count()
-                
-                bu_till_fail = till_date_query.filter(
-                    EVMComponent.component_type == EVMComponentType.BU,
-                    EVMComponent.status == "FLC_Failed"
-                ).count()
-                
-                # EVMs checked on target date (on date)
-                on_date_query = base_query.filter(EVMComponent.date_of_receipt == target_date)
-                
-                cu_on_pass = on_date_query.filter(
-                    EVMComponent.component_type == EVMComponentType.CU,
-                    EVMComponent.status == "FLC_Passed"
-                ).count()
-                
-                cu_on_fail = on_date_query.filter(
-                    EVMComponent.component_type == EVMComponentType.CU,
-                    EVMComponent.status == "FLC_Failed"
-                ).count()
-                
-                bu_on_pass = on_date_query.filter(
-                    EVMComponent.component_type == EVMComponentType.BU,
-                    EVMComponent.status == "FLC_Passed"
-                ).count()
-                
-                bu_on_fail = on_date_query.filter(
-                    EVMComponent.component_type == EVMComponentType.BU,
-                    EVMComponent.status == "FLC_Failed"
-                ).count()
-                
-                # Add to district data
-                district_row = {
-                    'district': district_name,
-                    'cu_till_pass': cu_till_pass,
-                    'cu_till_fail': cu_till_fail,
-                    'bu_till_pass': bu_till_pass,
-                    'bu_till_fail': bu_till_fail,
-                    'cu_on_pass': cu_on_pass,
-                    'cu_on_fail': cu_on_fail,
-                    'bu_on_pass': bu_on_pass,
-                    'bu_on_fail': bu_on_fail
-                }
-                district_data.append(district_row)
-                
-                # Add to totals
-                totals['cu_till_pass'] += cu_till_pass
-                totals['cu_till_fail'] += cu_till_fail
-                totals['bu_till_pass'] += bu_till_pass
-                totals['bu_till_fail'] += bu_till_fail
-                totals['cu_on_pass'] += cu_on_pass
-                totals['cu_on_fail'] += cu_on_fail
-                totals['bu_on_pass'] += bu_on_pass
-                totals['bu_on_fail'] += bu_on_fail
+                district_stats[district_name][key] += count
+                totals[key] += count
             
-            # Format date for report header
+            district_data = []
+            for district_name in kerala_districts:
+                stats = district_stats[district_name]
+                district_row = {'district': district_name, **stats}
+                district_data.append(district_row)
+            
             formatted_date = target_date.strftime("%d/%m/%Y")
             
             logging.info(f"Successfully fetched FLC data for {len(district_data)} districts on {formatted_date}")
@@ -421,7 +369,7 @@ def get_flc_report_data(report_date: str) -> Tuple[List[Dict], str, Dict]:
     except Exception as e:
         logging.error(f"Error fetching FLC report data: {str(e)}")
         raise Exception(f"Failed to fetch FLC report data: {str(e)}")
-
+    
 def generate_flc_report_sec(background_tasks: BackgroundTasks,report_date: str) -> str:
     try:
         
