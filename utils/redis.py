@@ -3,9 +3,9 @@ import json
 import os
 from typing import Any
 
-redis_host = os.getenv("REDIS_HOST", "localhost")
-redis_port = int(os.getenv("REDIS_PORT", "6379"))
-redis_password = os.getenv("REDIS_PASSWORD", None)
+redis_host = os.getenv("REDIS_HOST")
+redis_port = int(os.getenv("REDIS_PORT"))
+redis_password = os.getenv("REDIS_PASSWORD")
 
 class RedisClient:
     _client = None
