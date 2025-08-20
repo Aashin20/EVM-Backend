@@ -113,48 +113,48 @@ def new_components(components: List[ComponentModel], phy_order_no: str, user_id:
         
         # Generate PDF - validate component type
         component_type = components[0].component_type if components else None
-        
+        return Response(status_code=200)
             
-        if component_type in ["CU", "BU"]:
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
-                tmp_path = tmp_file.name
+        # if component_type in ["CU", "BU"]:
+        #     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+        #         tmp_path = tmp_file.name
 
-            CU_1(
-                    components=to_add, 
-                    component_type=component_type, 
-                    warehouse_names=warehouse_names, 
-                    filename=tmp_path,
-                    alloted_to=district_name,
-                    order_no=phy_order_no
-                )
+        #     CU_1(
+        #             components=to_add, 
+        #             component_type=component_type, 
+        #             warehouse_names=warehouse_names, 
+        #             filename=tmp_path,
+        #             alloted_to=district_name,
+        #             order_no=phy_order_no
+        #         )
             
-            background_tasks.add_task(remove_file, tmp_path)
+        #     background_tasks.add_task(remove_file, tmp_path)
 
-            return FileResponse(
-                    path=tmp_path,
-                    filename=f"Annexure_1_{component_type}_{uuid.uuid4().hex}.pdf",
-                    media_type="application/pdf"
-                )
+        #     return FileResponse(
+        #             path=tmp_path,
+        #             filename=f"Annexure_1_{component_type}_{uuid.uuid4().hex}.pdf",
+        #             media_type="application/pdf"
+        #         )
 
-        else:
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
-                tmp_path = tmp_file.name
+        # else:
+        #     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+        #         tmp_path = tmp_file.name
 
-            DMM_1(
-                    components=to_add, 
-                    component_type=component_type, 
-                    filename=tmp_path,
-                    alloted_to=district_name,
-                    order_no=phy_order_no
-                )
+        #     DMM_1(
+        #             components=to_add, 
+        #             component_type=component_type, 
+        #             filename=tmp_path,
+        #             alloted_to=district_name,
+        #             order_no=phy_order_no
+        #         )
 
-            background_tasks.add_task(remove_file, tmp_path)
+        #     background_tasks.add_task(remove_file, tmp_path)
 
-            return FileResponse(
-                    path=tmp_path,
-                    filename=f"Annexure_1_{component_type}_{uuid.uuid4().hex}.pdf",
-                    media_type="application/pdf"
-                )
+        #     return FileResponse(
+        #             path=tmp_path,
+        #             filename=f"Annexure_1_{component_type}_{uuid.uuid4().hex}.pdf",
+        #             media_type="application/pdf"
+        #         )
     
 def view_components(component_type:str,user_id: int):
 
@@ -240,44 +240,37 @@ def view_paired_bu(user_id:int):
 
 def dashboard_all(user_id: int) -> Dict[str, Any]:
     with Database.get_session() as session:
-        
         results = session.query(
             EVMComponent.component_type,
             EVMComponent.status,
             func.count(EVMComponent.id).label('count')
         ).filter(
             EVMComponent.current_user_id == user_id,
-            EVMComponent.component_type.in_(["CU", "DMM", "BU"])
+            EVMComponent.component_type.in_(["CU", "DMM", "BU"]),
+            EVMComponent.status.in_(["FLC_Passed", "FLC_Failed", "FLC_Pending"])
         ).group_by(
             EVMComponent.component_type,
             EVMComponent.status
         ).all()
         
-        
         response = {
             "CU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
             "DMM": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
             "BU": {"total": 0, "passed": 0, "failed": 0, "pending": 0},
-            "totals": {
-                "FLC_Pending": 0,
-                "FLC_Passed": 0,
-                "FLC_Failed": 0
-            }
+            "totals": {"FLC_Pending": 0, "FLC_Passed": 0, "FLC_Failed": 0}
         }
         
+        status_map = {
+            "FLC_Passed": "passed",
+            "FLC_Failed": "failed", 
+            "FLC_Pending": "pending"
+        }
         
         for component_type, status, count in results:
-            response[component_type]["total"] += count
-            
-            if status == "FLC_Passed":
-                response[component_type]["passed"] = count
-                response["totals"]["FLC_Passed"] += count
-            elif status == "FLC_Failed":
-                response[component_type]["failed"] = count
-                response["totals"]["FLC_Failed"] += count
-            elif status == "FLC_Pending":
-                response[component_type]["pending"] = count
-                response["totals"]["FLC_Pending"] += count
+            if status in status_map:
+                response[component_type]["total"] += count
+                response[component_type][status_map[status]] = count
+                response["totals"][status] += count
         
         return response
 
@@ -577,40 +570,41 @@ def approve_component_by_sec(serial_numbers: List[str]):
 
 def approval_queue_sec():
     with Database.get_session() as db:
-     
-        pending_components = db.query(EVMComponent).options(
-            joinedload(EVMComponent.current_warehouse).joinedload(Warehouse.district)
+        from sqlalchemy import case, func
+        
+        results = db.query(
+            District.name.label('district_name'),
+            EVMComponent.component_type,
+            EVMComponent.serial_number,
+            EVMComponent.box_no
+        ).join(
+            Warehouse, EVMComponent.current_warehouse_id == Warehouse.id
+        ).join(
+            District, Warehouse.district_id == District.id
         ).filter(
             EVMComponent.is_sec_approved == False,
             EVMComponent.component_type.notin_([
                 EVMComponentType.DMM_SEAL,
                 EVMComponentType.PINK_PAPER_SEAL
-            ])
-        ).all()
-
-      
+            ]),
+            EVMComponent.current_warehouse_id.isnot(None)
+        ).order_by(District.name, EVMComponent.component_type).all()
+        
         grouped = defaultdict(list)
-
-        for comp in pending_components:
-            warehouse = comp.current_warehouse
-            district = warehouse.district if warehouse else None
-            if not district:
-                continue 
-
-            grouped[district.name].append({
-                "component_type": comp.component_type.value,
-                "serial_number": comp.serial_number,
-                "box_no": comp.box_no
+        for district_name, component_type, serial_number, box_no in results:
+            grouped[district_name].append({
+                "component_type": component_type.value,
+                "serial_number": serial_number,
+                "box_no": box_no
             })
-
-     
+        
         result = []
         for district_name, comps in grouped.items():
             result.append({
                 "district": district_name,
                 "components": comps
             })
-
+        
         return result
 
 def view_dmm(user_id: int):
@@ -706,55 +700,45 @@ def warehouse_reentry(warehouse_updates: List[Dict[str, Any]], user_id: int):
 def components_without_warehouse(district_id: int):
     with Database.get_session() as db:
         try:
+            results = (
+                db.query(
+                    EVMComponent.component_type,
+                    EVMComponent.box_no,
+                    EVMComponent.serial_number
+                )
+                .join(User, EVMComponent.current_user_id == User.id)
+                .filter(
+                    EVMComponent.component_type.in_(["CU", "BU", "DMM"]),
+                    EVMComponent.status == "FLC_Passed",
+                    EVMComponent.current_warehouse_id.is_(None),
+                    User.district_id == district_id
+                )
+                .filter(
+                    or_(
+                        and_(
+                            EVMComponent.component_type.in_(["CU", "BU"]),
+                            EVMComponent.box_no.isnot(None)
+                        ),
+                        and_(
+                            EVMComponent.component_type == "DMM",
+                            EVMComponent.pairing_id.is_(None)
+                        )
+                    )
+                )
+                .all()
+            )
+
             result = {"CU": [], "BU": [], "DMM": []}
+            
+            for row in results:
+                if row.component_type in ["CU", "BU"]:
+                    result[row.component_type].append(row.box_no)
+                elif row.component_type == "DMM":
+                    result[row.component_type].append(row.serial_number)
 
-  
-            cu_boxes = (
-                db.query(EVMComponent.box_no)
-                .join(User, EVMComponent.current_user_id == User.id)
-                .filter(
-                    EVMComponent.component_type == "CU",
-                    EVMComponent.status == "FLC_Passed",
-                    EVMComponent.current_warehouse_id == None,
-                    EVMComponent.box_no != None,
-                    User.district_id == district_id
-                )
-                .distinct()
-                .all()
-            )
-            result["CU"] = [row.box_no for row in cu_boxes]
-
-       
-            bu_boxes = (
-                db.query(EVMComponent.box_no)
-                .join(User, EVMComponent.current_user_id == User.id)
-                .filter(
-                    EVMComponent.component_type == "BU",
-                    EVMComponent.status == "FLC_Passed",
-                    EVMComponent.current_warehouse_id == None,
-                    EVMComponent.box_no != None,
-                    User.district_id == district_id
-                )
-                .distinct()
-                .all()
-            )
-            result["BU"] = [row.box_no for row in bu_boxes]
-
-      
-            dmm_serials = (
-                db.query(EVMComponent.serial_number)
-                .join(User, EVMComponent.current_user_id == User.id)
-                .filter(
-                    EVMComponent.component_type == "DMM",
-                    EVMComponent.status == "FLC_Passed",
-                    EVMComponent.current_warehouse_id == None,
-                    EVMComponent.pairing_id == None,
-                    User.district_id == district_id
-                )
-                .all()
-            )
-            result["DMM"] = [row.serial_number for row in dmm_serials]
-
+            if result["CU"]:
+                result["CU"] = list(set(result["CU"]))
+            
             return result
 
         except Exception as e:
