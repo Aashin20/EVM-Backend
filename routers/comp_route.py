@@ -10,7 +10,9 @@ from utils.authtoken import get_current_user
 from core.return_ import damaged, view_damaged
 from core.msr import (MSR_CU_DMM, MSR_BU, MSR_BU_user, MSR_CU_DMM_user,
                       MSR_BU_warehouse, MSR_CU_DMM_warehouse)
+from utils.redis import RedisClient
 from utils.rate_limiter import limiter
+from utils.cache_decorator import cache_response
 
 class PairedCU(BaseModel):
     user_id : int
@@ -26,9 +28,11 @@ async def create_new_components(request: Request, components: List[ComponentMode
     if current_user['role'] not in ['Developer', 'SEC','DEO', 'FLC Officer']:
         raise HTTPException(status_code=401, detail="Unauthorized access")
     else:
+        await RedisClient.delete_pattern("comp*") 
         return new_components(components, order_no,user_id=10,background_tasks=background_tasks)
 
 @router.get("/msr/unpaired/{component_type}/{district_id}")
+@cache_response(expire=3600, key_prefix="comp_msr_deo", include_user=True)
 @limiter.limit("30/minute")
 async def cu(request: Request, component_type: str, district_id: str = Path(...), current_user: dict = Depends(get_current_user)):
     try:
@@ -39,11 +43,13 @@ async def cu(request: Request, component_type: str, district_id: str = Path(...)
         return view_components_sec(component_type)
     
 @router.get('/view/unpaired/{component_type}')
+@cache_response(expire=3600, key_prefix="comp_view_unpaired", include_user=True)
 @limiter.limit("30/minute")
 async def view_unpaired(request: Request, component_type: str, current_user: dict = Depends(get_current_user)):
     return view_components(component_type.upper(),current_user['user_id'])
 
 @router.get("/msr/paired/cu/{district_id}")
+@cache_response(expire=3600, key_prefix="comp_msr_deo_cu_paired", include_user=True)
 @limiter.limit("30/minute")
 async def paired_cu(request: Request, district_id: str = Path(...), current_user: dict = Depends(get_current_user)):
     try:
@@ -54,11 +60,13 @@ async def paired_cu(request: Request, district_id: str = Path(...), current_user
         return view_paired_cu_sec()
     
 @router.get("/view/paired/cu")
+@cache_response(expire=3600, key_prefix="comp_view_paired_cu", include_user=True)
 @limiter.limit("30/minute")
 async def get_paired_cu(request: Request, current_user: dict = Depends(get_current_user)):
     return view_paired_cu(current_user['user_id'])
 
 @router.get("/msr/paired/bu/{district_id}")
+@cache_response(expire=3600, key_prefix="comp_msr_deo_bu_paired", include_user=True)
 @limiter.limit("30/minute")
 async def paired_bu(request: Request, district_id: str = Path(...), current_user: dict = Depends(get_current_user)):
     try:
@@ -69,6 +77,7 @@ async def paired_bu(request: Request, district_id: str = Path(...), current_user
         return view_paired_bu_sec()
     
 @router.get("/view/paired/bu")
+@cache_response(expire=3600, key_prefix="comp_view_paired_bu", include_user=True)
 @limiter.limit("30/minute")
 async def get_paired_bu(request: Request, current_user: dict = Depends(get_current_user)):
     return view_paired_bu(current_user['user_id'])
@@ -78,9 +87,11 @@ async def get_paired_bu(request: Request, current_user: dict = Depends(get_curre
 async def approve_component(request: Request, serial_numbers: List[str], current_user: dict = Depends(get_current_user)):
     if current_user['role'] != 'SEC':
         raise HTTPException(status_code=401, detail="Unauthorized access")
+    await RedisClient.delete_pattern("comp*") 
     return approve_component_by_sec(serial_numbers)
 
 @router.get("/pending")
+@cache_response(expire=3600, key_prefix="comp_pending", include_user=True)
 @limiter.limit("30/minute")
 async def pending_approval(request: Request, current_user: dict = Depends(get_current_user)):
     if current_user['role'] != 'SEC':
@@ -90,19 +101,23 @@ async def pending_approval(request: Request, current_user: dict = Depends(get_cu
 @router.post("/damaged/add")
 @limiter.limit("30/minute")
 async def add_damaged(request: Request, evm_id: str, current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("comp*") 
     return damaged(evm_id)
 
 @router.get("/damaged/view/{district_id}")
+@cache_response(expire=3600, key_prefix="comp_damaged_view", include_user=True)
 @limiter.limit("30/minute")
 async def damaged_view(request: Request, district_id: int, current_user: dict = Depends(get_current_user)):
     return view_damaged(district_id)
 
 @router.get("/reserve/dmm")
+@cache_response(expire=3600, key_prefix="comp_reserve_dmm", include_user=True)
 @limiter.limit("30/minute")
 async def view_reserve_dmm(request: Request, current_user: dict = Depends(get_current_user)):
     return view_dmm(current_user['user_id'])
 
 @router.get("/msr/details/cu")
+@cache_response(expire=3600, key_prefix="comp_msr_details_cu", include_user=True)
 @limiter.limit("30/minute")
 async def get_msr_details_cu(request: Request):
     return MSR_CU_DMM()
@@ -113,6 +128,7 @@ async def get_msr_details_cu(request: Request):
 #     return MSR_BU()
 
 @router.get("/msr/details/bu/user/")
+@cache_response(expire=3600, key_prefix="comp_msr_user_bu", include_user=True)
 @limiter.limit("30/minute")
 async def get_msr_details_bu_by_user(request: Request, current_user: dict = Depends(get_current_user)):
     return MSR_BU_user(current_user['user_id'])
@@ -123,11 +139,13 @@ async def get_msr_details_bu_by_user(request: Request, current_user: dict = Depe
 #     return MSR_CU_DMM_user(current_user['user_id'])
 
 @router.get("/msr/details/cu/warehouse/{warehouse_id}")
+@cache_response(expire=3600, key_prefix="comp_msr_warehouse_cu", include_user=True)
 @limiter.limit("30/minute")
 async def fetch_cu_warehouse(request: Request, warehouse_id: str, current_user: dict = Depends(get_current_user)):
     return MSR_CU_DMM_warehouse(warehouse_id)
 
 @router.get("/msr/details/bu/warehouse/{warehouse_id}")
+@cache_response(expire=3600, key_prefix="comp_msr_warehouse_cu", include_user=True)
 @limiter.limit("30/minute")
 async def fetch_cu_warehouse(request: Request, warehouse_id: str, current_user: dict = Depends(get_current_user)):
     return MSR_BU_warehouse(warehouse_id)
@@ -135,9 +153,11 @@ async def fetch_cu_warehouse(request: Request, warehouse_id: str, current_user: 
 @router.post("/warehouse/reentry")
 @limiter.limit("30/minute")
 async def warehouse_reentry_route(request: Request, data: List[Dict[str, Any]], current_user: dict = Depends(get_current_user)):
+    await RedisClient.delete_pattern("comp*") 
     return warehouse_reentry(data, current_user['user_id'])
 
 @router.get("/unhoused/view/{district_id}")
+@cache_response(expire=3600, key_prefix="comp_unhoused", include_user=True)
 @limiter.limit("30/minute")
 async def get_unhoused(request: Request, district_id: int,current_user: dict = Depends(get_current_user)):
     return components_without_warehouse(district_id)
@@ -149,4 +169,5 @@ async def warehouse_reentry_route(
     data: List[Dict[str, Any]],
     current_user: dict = Depends(get_current_user)
 ):
+        await RedisClient.delete_pattern("comp*") 
         return warehouse_box_entry(data, current_user["user_id"])
