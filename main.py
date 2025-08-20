@@ -14,7 +14,7 @@ from utils.rate_limiter import user_key_func
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
- 
+from utils.redis import RedisClient
 
 limiter = Limiter(key_func=user_key_func)
 
@@ -40,10 +40,20 @@ async def lifespan(app: FastAPI):
     else:
         print("Failed to connect to Database")
         raise RuntimeError("Database connection failed")
+    print("Initializing Redis.....")
+    if await RedisClient.initialize():
+        print("Redis initialized successfully")
+    else:
+        print("Failed to initialize Redis")
+        raise RuntimeError("Redis initialization failed")
     yield
     print("Disconnecting from Database.....")
     Database._engine.dispose()
     print("Disconnected from Database")
+    
+    print("Closing Redis connection.....")
+    await RedisClient.close()
+    print("Redis closed successfully")
 
 
 app = FastAPI(lifespan=lifespan)
