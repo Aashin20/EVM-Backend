@@ -13,6 +13,8 @@ from core.logs import (
 from core.allotment import view_allotment_items
 from fastapi.exceptions import HTTPException
 from utils.rate_limiter import limiter
+from utils.cache_decorator import cache_response
+from utils.redis import RedisClient
 
 router = APIRouter()
 
