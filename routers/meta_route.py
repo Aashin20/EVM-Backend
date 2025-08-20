@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/district/{district_id}/{type}")
 @limiter.limit("30/minute")
 @cache_response(expire=3600, key_prefix="meta_local_body", include_user=False)
-async def local_body(request: Request, district_id: int, type: str):
+async def local_body(request: Request, district_id: int, type: str,current_user: dict = Depends(get_current_user)):
     return get_local_body(district_id, type)
 
 @router.get("/bodies/district")
