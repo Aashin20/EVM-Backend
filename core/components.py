@@ -16,6 +16,7 @@ from sqlalchemy.orm import joinedload
 from typing import List
 from collections import defaultdict
 import tempfile
+from sqlalchemy import case
 import uuid
 from utils.delete_file import remove_file
 
@@ -748,55 +749,67 @@ def components_without_warehouse(district_id: int):
 
 
 def warehouse_box_entry(warehouse_updates: List[Dict[str, Any]], user_id: int):
-    print(warehouse_updates,flush=True)
+    print(warehouse_updates, flush=True)
+    
     with Database.get_session() as db:
         try:
-            total_updated = 0
+            all_box_nos = []
+            warehouse_box_mapping = {}
+            
             for update_group in warehouse_updates:
                 warehouse_id = update_group.get("warehouse")
                 box_nos = update_group.get("box_nos", [])
-
+                
                 if not box_nos:
                     continue
-
-                components = db.query(EVMComponent).filter(
-                    EVMComponent.box_no.in_(box_nos)
-                ).all()
-
-                if not components:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"No components found for boxes: {box_nos}"
-                    )
-
-        
-                for component in components:
-                    audit_entry = EVMComponentLogs(
-                        serial_number=component.serial_number,
-                        component_type=component.component_type,
-                        status=component.status,
-                        is_verified=component.is_verified,
-                        dom=component.dom,
-                        box_no=component.box_no,
-                        current_user_id=user_id,
-                        current_warehouse_id=warehouse_id,
-                        pairing_id=component.pairing_id
-                    )
-                    db.add(audit_entry)
-
-    
-                updated_count = db.query(EVMComponent).filter(
-                    EVMComponent.box_no.in_(box_nos)
-                ).update(
-                    {EVMComponent.current_warehouse_id: warehouse_id},
-                    synchronize_session=False
+                    
+                all_box_nos.extend(box_nos)
+                for box_no in box_nos:
+                    warehouse_box_mapping[box_no] = warehouse_id
+            
+            if not all_box_nos:
+                return {"message": "No boxes to update", "components_updated": 0}
+            
+            components = db.query(EVMComponent).filter(
+                EVMComponent.box_no.in_(all_box_nos)
+            ).all()
+            
+            if not components:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No components found for boxes: {all_box_nos}"
                 )
-
-                total_updated += updated_count
-
+            
+            audit_entries = []
+            for component in components:
+                warehouse_id = warehouse_box_mapping[component.box_no]
+                audit_entries.append(EVMComponentLogs(
+                    serial_number=component.serial_number,
+                    component_type=component.component_type,
+                    status=component.status,
+                    is_verified=component.is_verified,
+                    dom=component.dom,
+                    box_no=component.box_no,
+                    current_user_id=user_id,
+                    current_warehouse_id=warehouse_id,
+                    pairing_id=component.pairing_id
+                ))
+            
+            db.bulk_save_objects(audit_entries)
+            
+            total_updated = db.query(EVMComponent).filter(
+                EVMComponent.box_no.in_(all_box_nos)
+            ).update({
+                EVMComponent.current_warehouse_id: case(
+                    [(EVMComponent.box_no == box_no, warehouse_id) 
+                     for box_no, warehouse_id in warehouse_box_mapping.items()],
+                    else_=EVMComponent.current_warehouse_id
+                )
+            }, synchronize_session=False)
+            
             db.commit()
             return {"message": "Warehouse updated successfully", "components_updated": total_updated}
-
+            
         except HTTPException:
             db.rollback()
             raise
